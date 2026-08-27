@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import { put } from "@vercel/blob";
 
-// In-memory cache fallback for server instances
+// In-memory cache fallback for local/serverless
 const memoryStore = new Map<string, { dataUrl: string; blobUrl?: string; createdAt: number }>();
 
 function getUploadDir(): string {
@@ -35,7 +35,30 @@ export async function saveStrip(
     }
   }
 
-  // 2. Write to local server disk cache (/tmp or public/uploads)
+  // 2. If Google Drive Webhook is configured, upload to Google Drive folder
+  if (!publicBlobUrl && process.env.GOOGLE_DRIVE_WEBHOOK_URL) {
+    try {
+      const res = await fetch(process.env.GOOGLE_DRIVE_WEBHOOK_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          image: dataUrl,
+          filename: `transium-booth-${id}.png`,
+          folderId: "1OV1osHIXrRjtaaIt7hX90AkY1AXGdZr6",
+        }),
+      });
+      if (res.ok) {
+        const result = await res.json();
+        if (result?.url) {
+          publicBlobUrl = result.url;
+        }
+      }
+    } catch (gdriveErr) {
+      console.warn("Google Drive webhook upload failed:", gdriveErr);
+    }
+  }
+
+  // 3. Write to local server disk cache (/tmp or public/uploads)
   try {
     const uploadsDir = getUploadDir();
     if (!fs.existsSync(uploadsDir)) {
@@ -48,7 +71,7 @@ export async function saveStrip(
     console.warn("Could not write to disk cache:", fsErr);
   }
 
-  // 3. Keep in memory cache
+  // 4. Keep in memory cache
   memoryStore.set(id, {
     dataUrl,
     blobUrl: publicBlobUrl,
