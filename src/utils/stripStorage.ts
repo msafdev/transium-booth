@@ -40,6 +40,26 @@ async function uploadToDirectCDN(base64Data: string, filename: string): Promise<
   return undefined;
 }
 
+// Background sync to user's Google Drive via Google Apps Script Webhook
+async function syncToGoogleDriveWebhook(dataUrl: string, filename: string) {
+  const webhookUrl = process.env.GOOGLE_DRIVE_WEBHOOK_URL;
+  if (!webhookUrl) return;
+
+  try {
+    await fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        image: dataUrl,
+        filename: `${filename}.png`,
+        folderId: "1OV1osHIXrRjtaaIt7hX90AkY1AXGdZr6",
+      }),
+    });
+  } catch (err) {
+    console.warn("Google Drive webhook background sync error:", err);
+  }
+}
+
 export async function saveStrip(
   id: string,
   dataUrl: string
@@ -50,7 +70,10 @@ export async function saveStrip(
   const base64Data = dataUrl.replace(/^data:image\/\w+;base64,/, "");
   const buffer = Buffer.from(base64Data, "base64");
 
-  // 1. If Vercel Blob token is configured in Vercel project, upload to official Vercel Blob CDN
+  // 1. Trigger Google Drive Webhook sync if configured
+  syncToGoogleDriveWebhook(dataUrl, id).catch(() => {});
+
+  // 2. If Vercel Blob token is configured in Vercel project, upload to official Vercel Blob CDN
   if (process.env.BLOB_READ_WRITE_TOKEN) {
     try {
       const blob = await put(`strips/${id}.png`, buffer, {
@@ -63,12 +86,12 @@ export async function saveStrip(
     }
   }
 
-  // 2. Direct high-speed ad-free CDN upload
+  // 3. Direct high-speed ad-free CDN upload
   if (!publicBlobUrl) {
     publicBlobUrl = await uploadToDirectCDN(base64Data, id);
   }
 
-  // 3. Write to local server disk cache (/tmp or public/uploads)
+  // 4. Write to local server disk cache (/tmp or public/uploads)
   try {
     const uploadsDir = getUploadDir();
     if (!fs.existsSync(uploadsDir)) {
@@ -81,7 +104,7 @@ export async function saveStrip(
     console.warn("Could not write to disk cache:", fsErr);
   }
 
-  // 4. Keep in memory cache
+  // 5. Keep in memory cache
   memoryStore.set(id, {
     dataUrl,
     blobUrl: publicBlobUrl,
