@@ -50,8 +50,8 @@ export default function PhotoboothPage() {
     setDateText(`${formattedDate} • ${formattedTime}`);
   }, []);
 
-  // When 4 photos are captured
-  const handlePhotosCaptured = (capturedPhotos: PhotoItem[]) => {
+  // When 4 photos are captured - automatically auto-save strip
+  const handlePhotosCaptured = async (capturedPhotos: PhotoItem[]) => {
     setPhotos(capturedPhotos);
     setActiveView("customize");
     setRetakeSlotIndex(null);
@@ -63,6 +63,25 @@ export default function PhotoboothPage() {
       origin: { y: 0.6 },
       colors: ["#3673FD", "#FFD166", "#06D6A0", "#EF476F", "#FFFFFF"],
     });
+
+    // Auto-save the completed strip directly in Ultra-HD
+    try {
+      const dataUrl = await exportPhotoboothStrip({
+        photos: capturedPhotos,
+        theme,
+        filter,
+        stickers: showStickers ? stickers : [],
+        caption,
+        showDate,
+        dateText,
+        scale: 3.5,
+        format: "image/png",
+      });
+      const filename = `transium-booth-${Date.now()}.png`;
+      downloadDataUrl(dataUrl, filename);
+    } catch {
+      // Auto-save fallback
+    }
   };
 
   // When a single photo is retaken
