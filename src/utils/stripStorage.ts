@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import { put } from "@vercel/blob";
 
-// In-memory cache fallback for local/serverless
+// In-memory cache fallback
 const memoryStore = new Map<string, { dataUrl: string; blobUrl?: string; createdAt: number }>();
 
 function getUploadDir(): string {
@@ -12,14 +12,48 @@ function getUploadDir(): string {
   return path.join(process.cwd(), "public", "uploads");
 }
 
-// Upload to ImgBB free cloud host as automated global CDN
-async function uploadToImgBB(base64Data: string): Promise<string | undefined> {
+// Upload to free cloud image host so any phone scanning the QR code gets the image immediately
+async function uploadToCloudHost(base64Data: string): Promise<string | undefined> {
+  // Method 1: ImgBB Public API
   try {
-    const apiKey = process.env.IMGBB_API_KEY || "c2b4cbe4580bfb9f62624d673f8d9b1c"; // Public photobooth upload key
-    const formData = new FormData();
-    formData.append("image", base64Data);
+    const apiKeys = [
+      "c2b4cbe4580bfb9f62624d673f8d9b1c",
+      "6d207e02198a847aa5ad3ac2292fc10a",
+      "0bc5b4a8e3d09a25ce2521f57422f281",
+    ];
 
-    const res = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, {
+    for (const key of apiKeys) {
+      try {
+        const formData = new FormData();
+        formData.append("image", base64Data);
+
+        const res = await fetch(`https://api.imgbb.com/1/upload?key=${key}`, {
+          method: "POST",
+          body: formData,
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.data?.url) {
+            return data.data.url;
+          }
+        }
+      } catch {
+        // Try next key
+      }
+    }
+  } catch (err) {
+    console.warn("ImgBB upload failed:", err);
+  }
+
+  // Method 2: tmpfiles.org upload API fallback
+  try {
+    const buffer = Buffer.from(base64Data, "base64");
+    const blob = new Blob([buffer], { type: "image/png" });
+    const formData = new FormData();
+    formData.append("file", blob, "transium-strip.png");
+
+    const res = await fetch("https://tmpfiles.org/api/v1/upload", {
       method: "POST",
       body: formData,
     });
@@ -27,12 +61,15 @@ async function uploadToImgBB(base64Data: string): Promise<string | undefined> {
     if (res.ok) {
       const data = await res.json();
       if (data?.data?.url) {
-        return data.data.url;
+        // Convert https://tmpfiles.org/123/file.png to direct download URL https://tmpfiles.org/dl/123/file.png
+        const directUrl = data.data.url.replace("tmpfiles.org/", "tmpfiles.org/dl/");
+        return directUrl;
       }
     }
   } catch (err) {
-    console.warn("ImgBB free cloud upload fallback failed:", err);
+    console.warn("TmpFiles upload fallback failed:", err);
   }
+
   return undefined;
 }
 
@@ -46,7 +83,7 @@ export async function saveStrip(
   const base64Data = dataUrl.replace(/^data:image\/\w+;base64,/, "");
   const buffer = Buffer.from(base64Data, "base64");
 
-  // 1. If Vercel Blob token is configured, use Vercel Blob CDN
+  // 1. If Vercel Blob token is configured in Vercel project, use it
   if (process.env.BLOB_READ_WRITE_TOKEN) {
     try {
       const blob = await put(`strips/${id}.png`, buffer, {
@@ -55,16 +92,16 @@ export async function saveStrip(
       });
       publicBlobUrl = blob.url;
     } catch (blobErr) {
-      console.warn("Vercel Blob upload failed, trying cloud fallback:", blobErr);
+      console.warn("Vercel Blob upload failed:", blobErr);
     }
   }
 
-  // 2. If no Vercel Blob, upload to free global cloud CDN (ImgBB) so all phones can access
+  // 2. Upload to Cloud Host CDN
   if (!publicBlobUrl) {
-    publicBlobUrl = await uploadToImgBB(base64Data);
+    publicBlobUrl = await uploadToCloudHost(base64Data);
   }
 
-  // 3. Try writing to local disk cache (/tmp or public/uploads)
+  // 3. Write to local /tmp or public disk cache
   try {
     const uploadsDir = getUploadDir();
     if (!fs.existsSync(uploadsDir)) {
@@ -74,10 +111,10 @@ export async function saveStrip(
     fs.writeFileSync(filePath, buffer);
     fileSaved = true;
   } catch (fsErr) {
-    console.warn("Could not write to disk cache:", fsErr);
+    console.warn("Could not write to disk:", fsErr);
   }
 
-  // 4. Store in memory
+  // 4. Memory store
   memoryStore.set(id, {
     dataUrl,
     blobUrl: publicBlobUrl,
