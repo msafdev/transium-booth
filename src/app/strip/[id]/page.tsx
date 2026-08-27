@@ -13,7 +13,7 @@ function StripShareContent() {
   const queryImg = searchParams?.get("img");
 
   const [imageUrl, setImageUrl] = useState<string | null>(queryImg || null);
-  const [isLoading, setIsLoading] = useState<boolean>(!queryImg);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [hasCopied, setHasCopied] = useState<boolean>(false);
   const [canShare, setCanShare] = useState<boolean>(false);
   const [imageError, setImageError] = useState<boolean>(false);
@@ -34,10 +34,28 @@ function StripShareContent() {
       colors: ["#3673FD", "#FFD166", "#06D6A0", "#EF476F", "#FFFFFF"],
     });
 
+    // 1. Check if direct image query param was provided
     if (queryImg) {
       setImageUrl(queryImg);
       setIsLoading(false);
-    } else if (id) {
+      return;
+    }
+
+    // 2. Check if image data was passed in URL hash (#data=...)
+    if (typeof window !== "undefined" && window.location.hash) {
+      const hash = window.location.hash.substring(1);
+      if (hash.startsWith("data=")) {
+        const decoded = decodeURIComponent(hash.replace("data=", ""));
+        if (decoded.startsWith("data:image/")) {
+          setImageUrl(decoded);
+          setIsLoading(false);
+          return;
+        }
+      }
+    }
+
+    // 3. Fallback to API route
+    if (id) {
       const targetUrl = `/api/strip/${id}`;
       setImageUrl(targetUrl);
       setIsLoading(false);
@@ -48,25 +66,35 @@ function StripShareContent() {
     if (!imageUrl) return;
     try {
       setIsDownloading(true);
-      const res = await fetch(imageUrl);
-      const contentType = res.headers.get("content-type") || "";
 
-      // Ensure response is an image and not a 404 JSON error
-      if (!res.ok || contentType.includes("application/json")) {
-        window.open(imageUrl, "_blank");
-        return;
+      // If data URL, download directly
+      if (imageUrl.startsWith("data:image/")) {
+        const link = document.createElement("a");
+        link.href = imageUrl;
+        link.download = `transium-booth-${id || "photo"}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } else {
+        const res = await fetch(imageUrl);
+        const contentType = res.headers.get("content-type") || "";
+
+        if (!res.ok || contentType.includes("application/json")) {
+          window.open(imageUrl, "_blank");
+          return;
+        }
+
+        const blob = await res.blob();
+        const blobUrl = URL.createObjectURL(blob);
+
+        const link = document.createElement("a");
+        link.href = blobUrl;
+        link.download = `transium-booth-${id || "photo"}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(blobUrl);
       }
-
-      const blob = await res.blob();
-      const blobUrl = URL.createObjectURL(blob);
-
-      const link = document.createElement("a");
-      link.href = blobUrl;
-      link.download = `transium-booth-${id || "photo"}.png`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(blobUrl);
 
       confetti({
         particleCount: 45,
@@ -83,9 +111,22 @@ function StripShareContent() {
   const handleShare = async () => {
     if (!canShare || !imageUrl) return;
     try {
-      const res = await fetch(imageUrl);
-      const blob = await res.blob();
-      const file = new File([blob], `transium-booth-${id || "photo"}.png`, { type: "image/png" });
+      let file: File;
+      if (imageUrl.startsWith("data:image/")) {
+        const base64Data = imageUrl.replace(/^data:image\/\w+;base64,/, "");
+        const byteCharacters = atob(base64Data);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: "image/png" });
+        file = new File([blob], `transium-booth-${id || "photo"}.png`, { type: "image/png" });
+      } else {
+        const res = await fetch(imageUrl);
+        const blob = await res.blob();
+        file = new File([blob], `transium-booth-${id || "photo"}.png`, { type: "image/png" });
+      }
 
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
@@ -194,7 +235,7 @@ function StripShareContent() {
           <button
             onClick={handleDownload}
             disabled={isDownloading}
-            className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black text-base shadow-2xl flex items-center justify-center gap-2 transform active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+            className="w-full py-4 px-6 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-base shadow-xl flex items-center justify-center gap-2 transform active:scale-95 transition-all cursor-pointer disabled:opacity-50"
           >
             <Download className="w-5 h-5 text-slate-950" />
             <span>{isDownloading ? "Saving..." : "Save to Camera Roll / Download"}</span>

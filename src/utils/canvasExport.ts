@@ -9,7 +9,7 @@ interface ExportOptions {
   showDate: boolean;
   dateText: string;
   scale?: number;
-  format?: "image/png" | "image/jpeg";
+  format?: "image/png" | "image/jpeg" | "image/webp";
   quality?: number;
 }
 
@@ -17,13 +17,11 @@ interface ExportOptions {
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    // Only set crossOrigin for remote absolute HTTP/HTTPS URLs
     if (src.startsWith("http://") || src.startsWith("https://")) {
       img.crossOrigin = "anonymous";
     }
     img.onload = () => resolve(img);
     img.onerror = (e) => {
-      // Fallback attempt without crossOrigin attribute
       const fallbackImg = new Image();
       fallbackImg.onload = () => resolve(fallbackImg);
       fallbackImg.onerror = () => reject(e);
@@ -33,7 +31,26 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-// Draw a single photobooth strip onto a given CanvasRenderingContext2D
+// Exact layout constants matching PhotoStrip.tsx DOM layout at 1x base
+// DOM: max-w-[360px], p-5 (20px), gap-3.5 (14px), aspect 4:3 photos
+export const STRIP_BASE_WIDTH = 360;
+export const STRIP_BASE_PADDING = 20;
+export const STRIP_PHOTO_WIDTH = STRIP_BASE_WIDTH - STRIP_BASE_PADDING * 2; // 320px
+export const STRIP_PHOTO_HEIGHT = STRIP_PHOTO_WIDTH * 0.75; // 240px (4:3 ratio)
+export const STRIP_PHOTO_GAP = 14; // 14px gap between photos
+export const STRIP_HEADER_HEIGHT = 68; // Top padding + logo + margin
+export const STRIP_FOOTER_HEIGHT = 64; // Caption + date + bottom padding
+
+// Total exact mathematical height of DOM strip
+export const STRIP_BASE_HEIGHT =
+  STRIP_BASE_PADDING +
+  STRIP_HEADER_HEIGHT +
+  STRIP_PHOTO_HEIGHT * 4 +
+  STRIP_PHOTO_GAP * 3 +
+  STRIP_FOOTER_HEIGHT +
+  STRIP_BASE_PADDING; // = 20 + 68 + 960 + 42 + 64 + 20 = 1174px
+
+// Draw a single photobooth strip onto a given CanvasRenderingContext2D (Pixel-perfect to DOM)
 export async function renderStripOnCanvas(
   ctx: CanvasRenderingContext2D,
   options: {
@@ -53,53 +70,49 @@ export async function renderStripOnCanvas(
 ) {
   const { offsetX, offsetY, width, height, photos, theme, filter, stickers, caption, showDate, dateText, loadedImagesMap } = options;
 
-  // 1. Draw Background
+  const scale = width / STRIP_BASE_WIDTH;
+
+  // 1. Draw Strip Background
   ctx.save();
   ctx.fillStyle = theme.bgColor;
   ctx.fillRect(offsetX, offsetY, width, height);
 
-  // If theme has border
   if (theme.borderColor) {
     ctx.strokeStyle = theme.borderColor;
-    ctx.lineWidth = 3;
-    ctx.strokeRect(offsetX + 1.5, offsetY + 1.5, width - 3, height - 3);
+    ctx.lineWidth = 2 * scale;
+    ctx.strokeRect(offsetX + 1 * scale, offsetY + 1 * scale, width - 2 * scale, height - 2 * scale);
   }
   ctx.restore();
 
-  // 2. Dimensions & Layout constants matching preview
-  const padX = width * 0.065; // horizontal margin
-  const photoW = width - padX * 2;
-  const photoH = photoW * 0.75; // 4:3 landscape ratio per photo
+  const padX = STRIP_BASE_PADDING * scale;
+  const photoW = STRIP_PHOTO_WIDTH * scale;
+  const photoH = STRIP_PHOTO_HEIGHT * scale;
+  const photoGap = STRIP_PHOTO_GAP * scale;
+  const headerH = STRIP_HEADER_HEIGHT * scale;
+  const photoRadius = 10 * scale;
 
-  const headerH = height * 0.085; // ~8.5% for top header
-  const footerH = height * 0.09; // ~9% for bottom caption/date
-  const availablePhotoArea = height - headerH - footerH;
-  const photoGap = (availablePhotoArea - photoH * 4) / 5;
-
-  // 3. Draw Photos FIRST (So that logo and stickers always sit on top!)
+  // 2. Draw 4 Photo Slots FIRST (z-10 layer)
   for (let i = 0; i < 4; i++) {
     const photo = photos[i];
     const photoX = offsetX + padX;
-    const photoY = offsetY + headerH + photoGap + i * (photoH + photoGap);
+    const photoY = offsetY + padX + headerH + i * (photoH + photoGap);
 
     ctx.save();
 
-    // Draw photo background placeholder
+    // Placeholder background
     ctx.fillStyle = "#E2E8F0";
-    const radius = 12;
     ctx.beginPath();
-    ctx.roundRect(photoX, photoY, photoW, photoH, radius);
+    ctx.roundRect(photoX, photoY, photoW, photoH, photoRadius);
     ctx.fill();
 
     if (photo && photo.dataUrl) {
       const img = loadedImagesMap.get(photo.id);
       if (img) {
-        // Apply filter to context
         if (filter.canvasFilter && filter.canvasFilter !== "none") {
           ctx.filter = filter.canvasFilter;
         }
 
-        // Draw with object-fit cover
+        // Object-fit cover math
         const imgAspect = img.width / img.height;
         const targetAspect = photoW / photoH;
         let sWidth = img.width;
@@ -115,17 +128,16 @@ export async function renderStripOnCanvas(
           sy = (img.height - sHeight) / 2;
         }
 
-        // Clip to rounded rect
+        // Clip to rounded photo frame
         ctx.beginPath();
-        ctx.roundRect(photoX, photoY, photoW, photoH, radius);
+        ctx.roundRect(photoX, photoY, photoW, photoH, photoRadius);
         ctx.clip();
 
         ctx.drawImage(img, sx, sy, sWidth, sHeight, photoX, photoY, photoW, photoH);
       }
     } else {
-      // Empty slot placeholder
       ctx.fillStyle = "#94A3B8";
-      ctx.font = `bold ${width * 0.038}px sans-serif`;
+      ctx.font = `bold ${14 * scale}px sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(`Photo ${i + 1}`, photoX + photoW / 2, photoY + photoH / 2);
@@ -134,28 +146,28 @@ export async function renderStripOnCanvas(
     ctx.restore();
   }
 
-  // 4. Draw Top Header: Transium Logotype (ON TOP of background & photos)
+  // 3. Draw Top Header: Transium Logotype (Tilted -3.5deg, Always on Top with z-30)
   const logotypeImg = loadedImagesMap.get("/assets/transium-logotype.png");
   if (logotypeImg) {
     ctx.save();
-    const logoW = width * 0.64;
+    // DOM width: w-52 (208px at base 360px width)
+    const logoW = 208 * scale;
     const logoH = (logoW / logotypeImg.width) * logotypeImg.height;
     const logoCenterX = offsetX + width / 2;
-    const logoCenterY = offsetY + headerH * 0.58;
+    const logoCenterY = offsetY + padX + headerH * 0.52;
 
     ctx.translate(logoCenterX, logoCenterY);
-    ctx.rotate((-3.5 * Math.PI) / 180); // Tilted ~ -3.5 degrees
+    ctx.rotate((-3.5 * Math.PI) / 180);
 
-    // Drop shadow for logo
     ctx.shadowColor = "rgba(0, 0, 0, 0.25)";
-    ctx.shadowBlur = 10;
-    ctx.shadowOffsetY = 4;
+    ctx.shadowBlur = 8 * scale;
+    ctx.shadowOffsetY = 3 * scale;
 
     ctx.drawImage(logotypeImg, -logoW / 2, -logoH / 2, logoW, logoH);
     ctx.restore();
   }
 
-  // 5. Draw Scattered & Rotated Stickers / Badges (ALWAYS ON TOP of photos and borders)
+  // 4. Draw Scattered & Rotated Stickers (Always on Top with z-40)
   const sortedStickers = [...stickers].sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
 
   for (const sticker of sortedStickers) {
@@ -172,43 +184,42 @@ export async function renderStripOnCanvas(
     ctx.translate(stCenterX, stCenterY);
     ctx.rotate((sticker.rotationDeg * Math.PI) / 180);
 
-    // Realistic sticker drop shadow
-    ctx.shadowColor = "rgba(0, 0, 0, 0.25)";
-    ctx.shadowBlur = 12;
-    ctx.shadowOffsetY = 5;
+    ctx.shadowColor = "rgba(0, 0, 0, 0.22)";
+    ctx.shadowBlur = 10 * scale;
+    ctx.shadowOffsetY = 4 * scale;
 
     ctx.drawImage(stickerImg, -stW / 2, -stH / 2, stW, stH);
     ctx.restore();
   }
 
-  // 6. Draw Footer Text (Caption & Timestamp)
+  // 5. Draw Footer Text (Caption & Timestamp)
   ctx.save();
-  const footerCenterY = offsetY + height - footerH * 0.52;
+  const footerAreaY = offsetY + padX + headerH + 4 * photoH + 3 * photoGap;
+  const footerCenterY = footerAreaY + (STRIP_FOOTER_HEIGHT * scale) * 0.5;
 
   ctx.fillStyle = theme.textColor;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
 
   if (caption) {
-    ctx.font = `bold ${width * 0.034}px sans-serif`;
-    ctx.fillText(caption.toUpperCase(), offsetX + width / 2, footerCenterY - (showDate ? height * 0.012 : 0));
+    ctx.font = `bold ${13 * scale}px sans-serif`;
+    ctx.fillText(caption.toUpperCase(), offsetX + width / 2, footerCenterY - (showDate ? 10 * scale : 0));
   }
 
   if (showDate && dateText) {
     ctx.fillStyle = theme.subtextColor;
-    ctx.font = `600 ${width * 0.024}px sans-serif`;
-    ctx.fillText(dateText, offsetX + width / 2, footerCenterY + (caption ? height * 0.014 : 0));
+    ctx.font = `600 ${10 * scale}px sans-serif`;
+    ctx.fillText(dateText, offsetX + width / 2, footerCenterY + (caption ? 12 * scale : 0));
   }
   ctx.restore();
 }
 
-// Export single high resolution strip
+// Export single high resolution strip (Exact replica of live preview)
 export async function exportPhotoboothStrip(options: ExportOptions): Promise<string> {
   const { photos, theme, filter, stickers, caption, showDate, dateText, scale = 2, format = "image/png", quality = 0.95 } = options;
 
-  const singleWidth = 540;
-  const singleHeight = 1620; // 1:3 ratio classic 4-cut photobooth strip
-  const scaleFactor = scale;
+  const totalWidth = STRIP_BASE_WIDTH * scale;
+  const totalHeight = STRIP_BASE_HEIGHT * scale;
 
   // Preload all needed images safely
   const loadedImagesMap = new Map<string, HTMLImageElement>();
@@ -252,15 +263,14 @@ export async function exportPhotoboothStrip(options: ExportOptions): Promise<str
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas 2D context not available");
 
-  canvas.width = singleWidth * scaleFactor;
-  canvas.height = singleHeight * scaleFactor;
-  ctx.scale(scaleFactor, scaleFactor);
+  canvas.width = totalWidth;
+  canvas.height = totalHeight;
 
   await renderStripOnCanvas(ctx, {
     offsetX: 0,
     offsetY: 0,
-    width: singleWidth,
-    height: singleHeight,
+    width: totalWidth,
+    height: totalHeight,
     photos,
     theme,
     filter,

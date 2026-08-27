@@ -11,12 +11,12 @@ export async function POST(req: NextRequest) {
     }
 
     // Generate unique short ID
-    const randomSuffix = Math.random().toString(36).substring(2, 9);
+    const randomSuffix = Math.random().toString(36).substring(2, 8);
     const id = `strip_${Date.now()}_${randomSuffix}`;
 
     const { fileSaved, publicBlobUrl } = await saveStrip(id, image);
 
-    // Determine public base URL
+    // Base URL determination
     let baseUrl = "https://transium-booth.vercel.app";
 
     if (origin && !origin.includes("localhost") && !origin.includes("127.0.0.1")) {
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
 
     const directImageUrl = publicBlobUrl || (fileSaved ? `${baseUrl}/uploads/${id}.png` : `${baseUrl}/api/strip/${id}`);
 
-    // If we have a direct CDN image URL, attach it as param so any phone gets the image immediately!
+    // Clean direct share URL without external ads
     const shareUrl = publicBlobUrl
       ? `${baseUrl}/strip/${id}?img=${encodeURIComponent(publicBlobUrl)}`
       : `${baseUrl}/strip/${id}`;

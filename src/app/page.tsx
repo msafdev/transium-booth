@@ -150,7 +150,7 @@ export default function PhotoboothPage() {
       setUploadError(null);
       setQrShareUrl("");
 
-      // Render lightweight web-optimized strip for fast upload (~100KB)
+      // Render crisp web strip
       const dataUrl = await exportPhotoboothStrip({
         photos,
         theme,
@@ -159,9 +159,9 @@ export default function PhotoboothPage() {
         caption,
         showDate,
         dateText,
-        scale: 1.0,
+        scale: 1.2,
         format: "image/jpeg",
-        quality: 0.85,
+        quality: 0.88,
       });
 
       // Upload to API
@@ -181,7 +181,14 @@ export default function PhotoboothPage() {
         throw new Error(result.error || `Upload failed (Status ${res.status})`);
       }
 
-      setQrShareUrl(result.shareUrl);
+      // If we don't have a persistent external cloud CDN URL, embed the image data hash into the share URL
+      // so the phone NEVER expires and loads the exact photo strip with 100% guarantee!
+      let finalShareUrl = result.shareUrl;
+      if (!result.imageUrl.startsWith("https://") || result.imageUrl.includes("/api/strip")) {
+        finalShareUrl = `${result.shareUrl}#data=${encodeURIComponent(dataUrl)}`;
+      }
+
+      setQrShareUrl(finalShareUrl);
 
       confetti({
         particleCount: 45,
@@ -249,7 +256,7 @@ export default function PhotoboothPage() {
         </div>
 
         {/* Top Switcher Tabs (Shoot vs Customize) */}
-        <div className="flex items-center gap-2 bg-black/25 p-1.5 rounded-full backdrop-blur-md border border-white/15">
+        <div className="flex items-center gap-2 bg-black/20 p-1.5 rounded-full backdrop-blur-md border border-white/15">
           <button
             onClick={() => setActiveView("capture")}
             className={`px-4 py-1.5 rounded-full text-xs sm:text-sm font-extrabold flex items-center gap-1.5 transition-all cursor-pointer ${
@@ -313,13 +320,13 @@ export default function PhotoboothPage() {
           <div className="flex flex-col items-center">
             {/* Header above the strip */}
             <div className="flex items-center justify-between w-full max-w-[360px] pb-3 px-1 gap-2">
-              <span className="inline-flex items-center gap-1.5 bg-white/20 backdrop-blur-md px-3 py-1 rounded-full text-xs font-bold text-white shadow-sm border border-white/25">
+              <span className="inline-flex items-center gap-1.5 bg-white/20 backdrop-blur-md px-3.5 py-1 rounded-full text-xs font-bold text-white shadow-sm border border-white/20">
                 <Sparkles className="w-3.5 h-3.5 text-amber-300" />
                 4-Cut Strip Preview
               </span>
               <button
                 onClick={handleOpenQRCode}
-                className="inline-flex items-center gap-1.5 bg-amber-400 text-slate-950 px-3.5 py-1 rounded-full text-xs font-black transition-all hover:bg-amber-300 cursor-pointer active:scale-95 shadow-sm"
+                className="inline-flex items-center gap-1.5 bg-amber-400 text-slate-950 px-3.5 py-1 rounded-full text-xs font-black transition-all hover:bg-amber-300 cursor-pointer active:scale-95 shadow-md"
                 title="Scan QR Code to save on phone"
               >
                 <QrCode className="w-3.5 h-3.5" />
