@@ -14,7 +14,7 @@ import {
   Check,
   FileImage,
   QrCode,
-  FolderHeart,
+  Smartphone,
   CheckCircle2,
   Share2,
 } from "lucide-react";
@@ -62,6 +62,7 @@ export const StudioControls: React.FC<StudioControlsProps> = ({
   onOpenQRCode,
   onRetakeAll,
   isDownloading,
+  isUploadingQR,
 }) => {
   const [activeTab, setActiveTab] = useState<TabType>("theme");
 
@@ -251,7 +252,7 @@ export const StudioControls: React.FC<StudioControlsProps> = ({
               type="text"
               value={caption}
               onChange={(e) => onCaptionChange(e.target.value)}
-              placeholder="e.g. TRANSIUM MOMENTS"
+              placeholder="e.g. TRANSIUM BOOTH"
               className="w-full bg-black/25 text-white placeholder-white/40 text-sm font-bold rounded-2xl px-4 py-3 border border-white/20 focus:outline-none focus:ring-2 focus:ring-white transition-all"
             />
           </div>
@@ -285,26 +286,27 @@ export const StudioControls: React.FC<StudioControlsProps> = ({
       {/* Tab 5: Share & Export */}
       {activeTab === "export" && (
         <div className="flex flex-col gap-3.5 animate-pop-in">
-          {/* Google Drive QR Card */}
+          {/* Mobile QR Card */}
           <div className="p-4 sm:p-5 rounded-2xl bg-amber-400 text-slate-950 flex flex-col gap-3 shadow-lg">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <FolderHeart className="w-5 h-5 text-slate-950" />
-                <h4 className="text-sm font-black">Google Drive Album QR</h4>
+                <Smartphone className="w-5 h-5 text-slate-950" />
+                <h4 className="text-sm font-black">Scan QR on Mobile Phone</h4>
               </div>
               <span className="bg-black/15 text-slate-950 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider">
-                Drive Album
+                Instant
               </span>
             </div>
             <p className="text-xs font-medium text-slate-900 leading-relaxed">
-              Show QR code for the event&apos;s shared Google Drive folder so everyone can access, download, and view all photobooth strips!
+              Generates a direct QR code for this 4-cut photobooth strip so you or your guests can save it directly to their phone!
             </p>
             <button
               onClick={onOpenQRCode}
-              className="w-full py-3.5 px-4 rounded-xl bg-slate-950 hover:bg-slate-900 text-white font-black text-sm shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95"
+              disabled={isUploadingQR}
+              className="w-full py-3.5 px-4 rounded-xl bg-slate-950 hover:bg-slate-900 text-white font-black text-sm shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
             >
               <QrCode className="w-4 h-4 text-amber-400" />
-              <span>✨ View Google Drive QR Code</span>
+              <span>{isUploadingQR ? "Generating QR Code..." : "✨ View Photo Strip QR Code"}</span>
             </button>
           </div>
 
@@ -333,11 +335,12 @@ export const StudioControls: React.FC<StudioControlsProps> = ({
         <div className="flex items-center gap-2">
           <button
             onClick={onOpenQRCode}
-            className="py-2.5 px-4 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-md transition-all cursor-pointer active:scale-95"
-            title="Scan QR Code for Google Drive"
+            disabled={isUploadingQR}
+            className="py-2.5 px-4 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-md transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+            title="Scan QR Code to save on phone"
           >
             <QrCode className="w-3.5 h-3.5 text-slate-950" />
-            <span>Drive QR</span>
+            <span>{isUploadingQR ? "Loading..." : "Scan QR"}</span>
           </button>
 
           {activeTab !== "export" && (

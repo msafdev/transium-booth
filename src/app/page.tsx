@@ -64,7 +64,7 @@ export default function PhotoboothPage() {
       colors: ["#3673FD", "#FFD166", "#06D6A0", "#EF476F", "#FFFFFF"],
     });
 
-    // Auto-save the completed strip directly in Ultra-HD
+    // Auto-save the completed strip directly to computer in Ultra-HD
     try {
       const dataUrl = await exportPhotoboothStrip({
         photos: capturedPhotos,
@@ -161,7 +161,7 @@ export default function PhotoboothPage() {
     }
   };
 
-  // Automatically save strip & generate QR code
+  // Automatically save strip & upload optimized web image for instant mobile QR scan
   const handleOpenQRCode = useCallback(async () => {
     try {
       setIsQRModalOpen(true);
@@ -169,8 +169,8 @@ export default function PhotoboothPage() {
       setUploadError(null);
       setQrShareUrl("");
 
-      // 1. Generate full quality HD strip
-      const dataUrl = await exportPhotoboothStrip({
+      // 1. Generate optimized, crisp web strip (< 300KB so it uploads in 0.2s without 413 errors)
+      const uploadDataUrl = await exportPhotoboothStrip({
         photos,
         theme,
         filter,
@@ -178,20 +178,36 @@ export default function PhotoboothPage() {
         caption,
         showDate,
         dateText,
-        scale: 3.5,
-        format: "image/png",
+        scale: 1.5,
+        format: "image/jpeg",
+        quality: 0.92,
       });
 
-      // 2. Auto-save to device / download folder so it is NEVER lost
-      const filename = `transium-booth-${Date.now()}.png`;
-      downloadDataUrl(dataUrl, filename);
+      // 2. Also save full 3.5x Ultra-HD PNG to computer in background
+      try {
+        const fullHdDataUrl = await exportPhotoboothStrip({
+          photos,
+          theme,
+          filter,
+          stickers: showStickers ? stickers : [],
+          caption,
+          showDate,
+          dateText,
+          scale: 3.5,
+          format: "image/png",
+        });
+        const filename = `transium-booth-${Date.now()}.png`;
+        downloadDataUrl(fullHdDataUrl, filename);
+      } catch {
+        // Continue
+      }
 
       // 3. Upload to API for mobile QR scan
       const res = await fetch("/api/upload-strip", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          image: dataUrl,
+          image: uploadDataUrl,
           caption,
           theme: theme.name,
           origin: typeof window !== "undefined" ? window.location.origin : undefined,
@@ -203,6 +219,7 @@ export default function PhotoboothPage() {
         throw new Error(result.error || `Upload failed (Status ${res.status})`);
       }
 
+      // The QR code URL directly points to the user's strip page!
       setQrShareUrl(result.shareUrl);
 
       confetti({
@@ -415,7 +432,7 @@ export default function PhotoboothPage() {
         )}
       </section>
 
-      {/* QR Code Modal for Mobile Scan & Cloud Save */}
+      {/* QR Code Modal for Mobile Scan & Instant Strip Save */}
       <QRCodeModal
         isOpen={isQRModalOpen}
         onClose={() => setIsQRModalOpen(false)}
