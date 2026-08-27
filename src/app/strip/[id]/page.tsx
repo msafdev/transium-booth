@@ -1,0 +1,205 @@
+"use client";
+
+import React, { useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import confetti from "canvas-confetti";
+import { Download, Share2, Sparkles, ArrowLeft, Heart, Check, Copy } from "lucide-react";
+import { downloadDataUrl } from "../../../utils/canvasExport";
+
+export default function StripSharePage() {
+  const params = useParams();
+  const router = useRouter();
+  const id = params?.id as string;
+
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [hasCopied, setHasCopied] = useState<boolean>(false);
+  const [canShare, setCanShare] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && typeof navigator !== "undefined" && "share" in navigator) {
+      setCanShare(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!id) return;
+
+    // Trigger welcoming celebration confetti
+    confetti({
+      particleCount: 60,
+      spread: 70,
+      origin: { y: 0.6 },
+      colors: ["#3673FD", "#FFD166", "#06D6A0", "#EF476F", "#FFFFFF"],
+    });
+
+    const targetUrl = `/api/strip/${id}`;
+    setImageUrl(targetUrl);
+    setIsLoading(false);
+  }, [id]);
+
+  const handleDownload = async () => {
+    if (!imageUrl) return;
+    try {
+      // Fetch as blob to trigger direct device download
+      const res = await fetch(imageUrl);
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = `transium-booth-${id}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(blobUrl);
+
+      confetti({
+        particleCount: 40,
+        spread: 60,
+        origin: { y: 0.7 },
+      });
+    } catch {
+      window.open(imageUrl, "_blank");
+    }
+  };
+
+  const handleShare = async () => {
+    if (!canShare || !imageUrl) return;
+    try {
+      const res = await fetch(imageUrl);
+      const blob = await res.blob();
+      const file = new File([blob], `transium-booth-${id}.png`, { type: "image/png" });
+
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: "My Transium Photobooth Strip 📸",
+          text: "Check out my 4-cut photobooth strip!",
+        });
+      } else {
+        await navigator.share({
+          title: "My Transium Photobooth Strip 📸",
+          url: window.location.href,
+        });
+      }
+    } catch {
+      // User cancelled share
+    }
+  };
+
+  const handleCopyLink = () => {
+    if (typeof window === "undefined") return;
+    navigator.clipboard.writeText(window.location.href);
+    setHasCopied(true);
+    setTimeout(() => setHasCopied(false), 2000);
+  };
+
+  return (
+    <main className="relative min-h-screen bg-[#3673FD] text-white flex flex-col items-center justify-between p-4 sm:p-6 lg:p-8 overflow-x-hidden">
+      {/* Background Floating Decorative Elements */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0 select-none">
+        <div className="absolute top-10 left-8 w-12 h-12 opacity-25 animate-float-1">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/assets/star.png" alt="" className="w-full h-full object-contain" />
+        </div>
+        <div className="absolute bottom-16 right-10 w-14 h-14 opacity-25 animate-float-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/assets/confetti-1.png" alt="" className="w-full h-full object-contain" />
+        </div>
+        <div className="absolute top-1/2 left-6 w-10 h-10 opacity-20 animate-float-1">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/assets/star.png" alt="" className="w-full h-full object-contain" />
+        </div>
+      </div>
+
+      {/* Header */}
+      <header className="relative z-10 w-full max-w-md flex items-center justify-between gap-4 pb-4">
+        <button
+          onClick={() => router.push("/")}
+          className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer backdrop-blur-md"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>New Strip</span>
+        </button>
+
+        <div className="relative w-32 h-9">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/assets/transium-logotype.png"
+            alt="Transium"
+            className="w-full h-full object-contain filter drop-shadow"
+          />
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <section className="relative z-10 w-full max-w-md my-auto py-2 flex flex-col items-center gap-5">
+        {/* Banner */}
+        <div className="flex items-center gap-2 bg-white/15 backdrop-blur-md px-4 py-2 rounded-full border border-white/20 text-xs font-bold shadow-sm">
+          <Sparkles className="w-4 h-4 text-amber-300" />
+          <span>Your Photobooth Strip is Ready!</span>
+        </div>
+
+        {/* Photo Strip Image Preview */}
+        <div className="relative w-full max-w-[320px] rounded-2xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.4)] border-2 border-white/20 bg-slate-900 flex items-center justify-center">
+          {isLoading ? (
+            <div className="w-full aspect-[1/3] flex items-center justify-center text-white/60 text-xs font-semibold">
+              Loading strip...
+            </div>
+          ) : imageUrl ? (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={imageUrl}
+              alt="Transium Photobooth Strip"
+              className="w-full h-auto object-contain block select-none"
+            />
+          ) : (
+            <div className="p-8 text-center text-sm">Strip not found</div>
+          )}
+        </div>
+
+        {/* Download & Share Actions */}
+        <div className="w-full max-w-[320px] flex flex-col gap-3">
+          {/* Main Save Button */}
+          <button
+            onClick={handleDownload}
+            className="w-full py-4 px-6 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-base shadow-xl flex items-center justify-center gap-2 transform active:scale-95 transition-all cursor-pointer"
+          >
+            <Download className="w-5 h-5" />
+            <span>Save to Photos / Download</span>
+          </button>
+
+          <div className="flex gap-2">
+            {canShare && (
+              <button
+                onClick={handleShare}
+                className="flex-1 py-3 px-4 rounded-xl bg-white text-[#3673FD] hover:bg-white/95 font-black text-xs shadow-md flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95"
+              >
+                <Share2 className="w-4 h-4" />
+                <span>Share</span>
+              </button>
+            )}
+
+            <button
+              onClick={handleCopyLink}
+              className="flex-1 py-3 px-4 rounded-xl bg-white/20 hover:bg-white/30 text-white font-bold text-xs shadow-md flex items-center justify-center gap-1.5 transition-all cursor-pointer backdrop-blur-md active:scale-95"
+            >
+              {hasCopied ? <Check className="w-4 h-4 text-emerald-300" /> : <Copy className="w-4 h-4" />}
+              <span>{hasCopied ? "Copied!" : "Copy Link"}</span>
+            </button>
+          </div>
+
+          <p className="text-[11px] text-white/70 text-center leading-tight pt-1">
+            💡 On mobile, tap <strong>Save to Photos</strong> or press and hold the image to save directly to your gallery.
+          </p>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="relative z-10 w-full max-w-md pt-4 pb-2 text-center text-xs text-white/70">
+        <p>© {new Date().getFullYear()} Transium Photobooth</p>
+      </footer>
+    </main>
+  );
+}
