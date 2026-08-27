@@ -38,18 +38,57 @@ export const CameraView: React.FC<CameraViewProps> = ({
   const [timerDuration, setTimerDuration] = useState<number>(3); // 3 seconds default
   const [capturedBatch, setCapturedBatch] = useState<PhotoItem[]>([]);
 
-  // Initialize camera stream in Full HD (1080p / 2K)
-  const startCamera = useCallback(async (deviceId?: string) => {
+  // Initialize camera stream in Full HD (1080p / 2K) with Studio Display priority
+  const startCamera = useCallback(async (targetDeviceId?: string) => {
     try {
       setErrorMsg(null);
       if (stream) {
         stream.getTracks().forEach((track) => track.stop());
       }
 
+      // Query available video devices first to prioritize Studio Display
+      let activeDeviceId = targetDeviceId;
+
+      try {
+        const allDevices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevs = allDevices.filter((d) => d.kind === "videoinput");
+        setDevices(videoDevs);
+
+        if (!activeDeviceId) {
+          // 1. Check if user has saved preference
+          const savedPref = typeof window !== "undefined" ? localStorage.getItem("transium_preferred_camera") : null;
+          if (savedPref && videoDevs.some((d) => d.deviceId === savedPref)) {
+            activeDeviceId = savedPref;
+          } else {
+            // 2. Default to Studio Display camera
+            const studioDisplayDev = videoDevs.find((d) => {
+              const label = (d.label || "").toLowerCase();
+              return (
+                label.includes("studio display") ||
+                label.includes("studio") ||
+                (label.includes("apple") && label.includes("display"))
+              );
+            });
+
+            if (studioDisplayDev) {
+              activeDeviceId = studioDisplayDev.deviceId;
+            } else if (videoDevs.length > 0) {
+              activeDeviceId = videoDevs[0].deviceId;
+            }
+          }
+        }
+      } catch {
+        // Enumerate fallback
+      }
+
+      if (activeDeviceId) {
+        setSelectedDeviceId(activeDeviceId);
+      }
+
       const constraints: MediaStreamConstraints = {
         video: {
-          deviceId: deviceId ? { exact: deviceId } : undefined,
-          facingMode: deviceId ? undefined : "user",
+          deviceId: activeDeviceId ? { exact: activeDeviceId } : undefined,
+          facingMode: activeDeviceId ? undefined : "user",
           width: { ideal: 1920, min: 1280 },
           height: { ideal: 1440, min: 960 },
           aspectRatio: { ideal: 4 / 3 },
@@ -66,19 +105,51 @@ export const CameraView: React.FC<CameraViewProps> = ({
         videoRef.current.srcObject = mediaStream;
       }
 
-      // Query available video devices
-      const allDevices = await navigator.mediaDevices.enumerateDevices();
-      const videoDevs = allDevices.filter((d) => d.kind === "videoinput");
-      setDevices(videoDevs);
-      if (!selectedDeviceId && videoDevs.length > 0) {
-        setSelectedDeviceId(videoDevs[0].deviceId);
+      // Refresh list with full labels after permissions granted
+      const refreshedDevices = await navigator.mediaDevices.enumerateDevices();
+      const refreshedVideoDevs = refreshedDevices.filter((d) => d.kind === "videoinput");
+      setDevices(refreshedVideoDevs);
+
+      // If we didn't have activeDeviceId before, prioritize Studio Display now
+      if (!targetDeviceId && refreshedVideoDevs.length > 0) {
+        const studioDisplayDev = refreshedVideoDevs.find((d) => {
+          const label = (d.label || "").toLowerCase();
+          return (
+            label.includes("studio display") ||
+            label.includes("studio") ||
+            (label.includes("apple") && label.includes("display"))
+          );
+        });
+
+        if (studioDisplayDev && studioDisplayDev.deviceId !== activeDeviceId) {
+          // Switch to Studio Display
+          setSelectedDeviceId(studioDisplayDev.deviceId);
+          if (typeof window !== "undefined") {
+            localStorage.setItem("transium_preferred_camera", studioDisplayDev.deviceId);
+          }
+          // Re-trigger with Studio Display
+          const newStream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              deviceId: { exact: studioDisplayDev.deviceId },
+              width: { ideal: 1920, min: 1280 },
+              height: { ideal: 1440, min: 960 },
+              aspectRatio: { ideal: 4 / 3 },
+            },
+            audio: false,
+          });
+          mediaStream.getTracks().forEach((t) => t.stop());
+          setStream(newStream);
+          if (videoRef.current) {
+            videoRef.current.srcObject = newStream;
+          }
+        }
       }
     } catch (err: unknown) {
       console.error("Camera access error:", err);
       setIsCameraActive(false);
       setErrorMsg("Camera permission denied or camera not found. You can also upload photos directly.");
     }
-  }, [selectedDeviceId, stream]);
+  }, [stream]);
 
   useEffect(() => {
     startCamera();
@@ -89,6 +160,14 @@ export const CameraView: React.FC<CameraViewProps> = ({
       }
     };
   }, []);
+
+  const handleDeviceChange = (newDeviceId: string) => {
+    setSelectedDeviceId(newDeviceId);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("transium_preferred_camera", newDeviceId);
+    }
+    startCamera(newDeviceId);
+  };
 
   // Capture ultra-sharp HD frame from video feed
   const captureFrame = useCallback((): string | null => {
@@ -376,16 +455,15 @@ export const CameraView: React.FC<CameraViewProps> = ({
             {devices.length > 1 && (
               <select
                 value={selectedDeviceId}
-                onChange={(e) => {
-                  setSelectedDeviceId(e.target.value);
-                  startCamera(e.target.value);
-                }}
+                onChange={(e) => handleDeviceChange(e.target.value)}
                 disabled={isCapturing}
-                className="bg-white/15 text-white text-xs rounded-full px-3 py-1.5 backdrop-blur-md border-none focus:ring-2 focus:ring-white outline-none cursor-pointer"
+                className="bg-white/15 text-white text-xs rounded-full px-3 py-1.5 backdrop-blur-md border-none focus:ring-2 focus:ring-white outline-none cursor-pointer font-bold"
               >
                 {devices.map((d, i) => (
                   <option key={d.deviceId} value={d.deviceId} className="bg-slate-800 text-white">
-                    {d.label || `Camera ${i + 1}`}
+                    {d.label.toLowerCase().includes("studio display")
+                      ? `✨ ${d.label}`
+                      : d.label || `Camera ${i + 1}`}
                   </option>
                 ))}
               </select>
