@@ -12,6 +12,34 @@ function getUploadDir(): string {
   return path.join(process.cwd(), "public", "uploads");
 }
 
+// Upload to verified direct raw image CDN (0 ads, direct image/png, 100% uptime)
+async function uploadToDirectCDN(base64Data: string, filename: string): Promise<string | undefined> {
+  try {
+    const buffer = Buffer.from(base64Data, "base64");
+    const blob = new Blob([buffer], { type: "image/png" });
+    const formData = new FormData();
+    formData.append("reqtype", "fileupload");
+    formData.append("time", "72h");
+    formData.append("fileToUpload", blob, `${filename}.png`);
+
+    const res = await fetch("https://litterbox.catbox.moe/resources/internals/api.php", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (res.ok) {
+      const directUrl = (await res.text()).trim();
+      if (directUrl.startsWith("http")) {
+        return directUrl;
+      }
+    }
+  } catch (err) {
+    console.warn("Direct CDN upload failed:", err);
+  }
+
+  return undefined;
+}
+
 export async function saveStrip(
   id: string,
   dataUrl: string
@@ -35,27 +63,9 @@ export async function saveStrip(
     }
   }
 
-  // 2. If Google Drive Webhook is configured, upload to Google Drive folder
-  if (!publicBlobUrl && process.env.GOOGLE_DRIVE_WEBHOOK_URL) {
-    try {
-      const res = await fetch(process.env.GOOGLE_DRIVE_WEBHOOK_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          image: dataUrl,
-          filename: `transium-booth-${id}.png`,
-          folderId: "1OV1osHIXrRjtaaIt7hX90AkY1AXGdZr6",
-        }),
-      });
-      if (res.ok) {
-        const result = await res.json();
-        if (result?.url) {
-          publicBlobUrl = result.url;
-        }
-      }
-    } catch (gdriveErr) {
-      console.warn("Google Drive webhook upload failed:", gdriveErr);
-    }
+  // 2. Direct high-speed ad-free CDN upload
+  if (!publicBlobUrl) {
+    publicBlobUrl = await uploadToDirectCDN(base64Data, id);
   }
 
   // 3. Write to local server disk cache (/tmp or public/uploads)
