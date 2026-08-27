@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { X, QrCode, Copy, Check, ExternalLink, Smartphone, Sparkles } from "lucide-react";
+import { X, QrCode, Copy, Check, ExternalLink, Smartphone, Sparkles, Info } from "lucide-react";
 
 interface QRCodeModalProps {
   isOpen: boolean;
@@ -28,9 +28,11 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
     setTimeout(() => setHasCopied(false), 2000);
   };
 
+  const isLocalhost = typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
-      <div className="relative w-full max-w-sm bg-slate-900 border border-white/20 rounded-3xl p-6 sm:p-7 shadow-2xl flex flex-col items-center text-center text-white">
+      <div className="relative w-full max-w-sm bg-slate-900 border border-white/20 rounded-3xl p-6 sm:p-7 shadow-[0_25px_60px_rgba(0,0,0,0.5)] flex flex-col items-center text-center text-white">
         {/* Close Button */}
         <button
           onClick={onClose}
@@ -40,52 +42,62 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
         </button>
 
         {/* Title Badge */}
-        <div className="flex items-center gap-1.5 bg-amber-400/20 text-amber-300 px-3.5 py-1 rounded-full text-xs font-bold border border-amber-300/30 mb-3">
+        <div className="flex items-center gap-1.5 bg-amber-400/20 text-amber-300 px-3.5 py-1 rounded-full text-xs font-bold border border-amber-300/30 mb-2">
           <Smartphone className="w-3.5 h-3.5" />
-          <span>Mobile QR Download</span>
+          <span>Scan to Download</span>
         </div>
 
         <h3 className="text-xl font-black text-white mb-1">
-          Scan to Save to Phone
+          Save Photo Strip to Phone
         </h3>
-        <p className="text-xs text-white/70 mb-5 max-w-xs leading-relaxed">
-          Open your phone&apos;s camera app and point it at the QR code below to download your 4-cut strip!
+        <p className="text-xs text-white/75 mb-4 max-w-xs leading-relaxed">
+          Scan this QR code with your phone camera to download your high-resolution photobooth strip.
         </p>
 
         {/* QR Code Container */}
-        <div className="relative p-4 bg-white rounded-2xl shadow-2xl flex items-center justify-center mb-5 border-4 border-amber-400">
+        <div className="relative p-4 bg-white rounded-2xl shadow-2xl flex items-center justify-center mb-4 border-4 border-amber-400">
           {isUploading ? (
-            <div className="w-[200px] h-[200px] flex flex-col items-center justify-center gap-2 text-slate-700">
+            <div className="w-[190px] h-[190px] flex flex-col items-center justify-center gap-2 text-slate-800">
               <div className="w-8 h-8 border-3 border-[#3673FD] border-t-transparent rounded-full animate-spin" />
               <span className="text-xs font-bold">Uploading strip...</span>
             </div>
           ) : shareUrl ? (
             <QRCodeSVG
               value={shareUrl}
-              size={200}
+              size={190}
               level="H"
               includeMargin={false}
               imageSettings={{
                 src: "/assets/transium-logo.png",
                 x: undefined,
                 y: undefined,
-                height: 42,
-                width: 42,
+                height: 40,
+                width: 40,
                 excavate: true,
               }}
             />
           ) : (
-            <div className="w-[200px] h-[200px] flex items-center justify-center text-slate-500 text-xs">
+            <div className="w-[190px] h-[190px] flex items-center justify-center text-slate-500 text-xs font-semibold">
               Generating QR...
             </div>
           )}
         </div>
 
+        {/* Localhost helper tip if testing locally */}
+        {isLocalhost && !isUploading && shareUrl && (
+          <div className="w-full p-2.5 mb-3 rounded-xl bg-amber-400/15 border border-amber-300/25 text-[11px] text-amber-200 text-left flex items-start gap-1.5 leading-snug">
+            <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+            <span>
+              Testing on local computer: Click <strong>Open Page</strong> below or deploy to Vercel for public phone scanning!
+            </span>
+          </div>
+        )}
+
         {/* Link & Copy Actions */}
         {shareUrl && (
           <div className="w-full flex flex-col gap-2">
             <div className="flex items-center gap-2 bg-black/40 border border-white/15 px-3 py-2 rounded-xl text-xs">
-              <span className="text-white/75 truncate flex-1 text-left font-mono">{shareUrl}</span>
+              <span className="text-white/80 truncate flex-1 text-left font-mono">{shareUrl}</span>
               <button
                 onClick={handleCopy}
                 className="p-1.5 rounded-lg bg-white/20 hover:bg-white/30 text-white transition-colors cursor-pointer shrink-0"
@@ -103,7 +115,7 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
                 className="flex-1 py-2.5 px-4 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
-                <span>Open Link</span>
+                <span>Open Page</span>
               </a>
               <button
                 onClick={onClose}

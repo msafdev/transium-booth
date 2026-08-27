@@ -5,7 +5,6 @@ import confetti from "canvas-confetti";
 import { CameraView } from "../components/CameraView";
 import { PhotoStrip } from "../components/PhotoStrip";
 import { StudioControls } from "../components/StudioControls";
-import { TwinStripModal } from "../components/TwinStripModal";
 import { QRCodeModal } from "../components/QRCodeModal";
 import { PhotoItem, FrameTheme, PhotoFilter, StickerPlacement } from "../types/photobooth";
 import { FRAME_THEMES, PHOTO_FILTERS, DEFAULT_STICKER_PRESETS } from "../constants/photoboothData";
@@ -28,7 +27,6 @@ export default function PhotoboothPage() {
   const [activeView, setActiveView] = useState<"capture" | "customize">("capture");
   const [retakeSlotIndex, setRetakeSlotIndex] = useState<number | null>(null);
   const [isDownloading, setIsDownloading] = useState<boolean>(false);
-  const [isTwinModalOpen, setIsTwinModalOpen] = useState<boolean>(false);
 
   // QR Code & Cloud Upload State
   const [isQRModalOpen, setIsQRModalOpen] = useState<boolean>(false);
@@ -111,7 +109,7 @@ export default function PhotoboothPage() {
     }
   };
 
-  // Download single strip PNG to local device
+  // Download single strip PNG to local computer
   const handleDownloadSingle = async () => {
     try {
       setIsDownloading(true);
@@ -123,7 +121,8 @@ export default function PhotoboothPage() {
         caption,
         showDate,
         dateText,
-        isTwin: false,
+        scale: 2,
+        format: "image/png",
       });
 
       const filename = `transium-booth-${Date.now()}.png`;
@@ -142,38 +141,6 @@ export default function PhotoboothPage() {
     }
   };
 
-  // Download twin strip print PNG to local device
-  const handleDownloadTwin = async () => {
-    try {
-      setIsDownloading(true);
-      const dataUrl = await exportPhotoboothStrip({
-        photos,
-        theme,
-        filter,
-        stickers: showStickers ? stickers : [],
-        caption,
-        showDate,
-        dateText,
-        isTwin: true,
-      });
-
-      const filename = `transium-twin-strip-${Date.now()}.png`;
-      downloadDataUrl(dataUrl, filename);
-
-      setIsTwinModalOpen(false);
-      confetti({
-        particleCount: 70,
-        spread: 80,
-        origin: { y: 0.7 },
-      });
-    } catch (err) {
-      console.error("Export error:", err);
-      alert("Failed to export twin photobooth strip. Please try again.");
-    } finally {
-      setIsDownloading(false);
-    }
-  };
-
   // Upload strip to Cloud / Server and open QR Code Modal
   const handleOpenQRCode = async () => {
     try {
@@ -181,7 +148,7 @@ export default function PhotoboothPage() {
       setIsUploadingCloud(true);
       setQrShareUrl("");
 
-      // Render high-res strip
+      // Render web-optimized crisp strip for fast upload
       const dataUrl = await exportPhotoboothStrip({
         photos,
         theme,
@@ -190,7 +157,9 @@ export default function PhotoboothPage() {
         caption,
         showDate,
         dateText,
-        isTwin: false,
+        scale: 1.5,
+        format: "image/jpeg",
+        quality: 0.92,
       });
 
       // Upload to API
@@ -201,6 +170,7 @@ export default function PhotoboothPage() {
           image: dataUrl,
           caption,
           theme: theme.name,
+          origin: typeof window !== "undefined" ? window.location.origin : undefined,
         }),
       });
 
@@ -277,7 +247,7 @@ export default function PhotoboothPage() {
         </div>
 
         {/* Top Switcher Tabs (Shoot vs Customize) */}
-        <div className="flex items-center gap-2 bg-black/20 p-1.5 rounded-full backdrop-blur-md border border-white/10">
+        <div className="flex items-center gap-2 bg-black/25 p-1.5 rounded-full backdrop-blur-md border border-white/15">
           <button
             onClick={() => setActiveView("capture")}
             className={`px-4 py-1.5 rounded-full text-xs sm:text-sm font-extrabold flex items-center gap-1.5 transition-all cursor-pointer ${
@@ -345,22 +315,14 @@ export default function PhotoboothPage() {
                 <Sparkles className="w-3.5 h-3.5 text-amber-300" />
                 4-Cut Strip Preview
               </span>
-              <div className="flex items-center gap-1.5">
-                <button
-                  onClick={handleOpenQRCode}
-                  className="inline-flex items-center gap-1 bg-amber-400 text-slate-950 px-3 py-1 rounded-full text-xs font-black transition-all hover:bg-amber-300 cursor-pointer active:scale-95 shadow-sm"
-                  title="Scan QR Code to save on phone"
-                >
-                  <QrCode className="w-3.5 h-3.5" />
-                  <span>Scan QR</span>
-                </button>
-                <button
-                  onClick={() => setIsTwinModalOpen(true)}
-                  className="inline-flex items-center gap-1 bg-white/20 hover:bg-white/30 text-white px-2.5 py-1 rounded-full text-xs font-bold transition-all border border-white/25 cursor-pointer active:scale-95 shadow-sm"
-                >
-                  <span>Twin</span>
-                </button>
-              </div>
+              <button
+                onClick={handleOpenQRCode}
+                className="inline-flex items-center gap-1.5 bg-amber-400 text-slate-950 px-3.5 py-1 rounded-full text-xs font-black transition-all hover:bg-amber-300 cursor-pointer active:scale-95 shadow-sm"
+                title="Scan QR Code to save on phone"
+              >
+                <QrCode className="w-3.5 h-3.5" />
+                <span>Scan QR</span>
+              </button>
             </div>
 
             <PhotoStrip
@@ -420,29 +382,14 @@ export default function PhotoboothPage() {
               onRandomizeStickers={handleRandomizeStickers}
               onPresetChange={handlePresetChange}
               onDownloadSingle={handleDownloadSingle}
-              onDownloadTwin={handleDownloadTwin}
               onOpenQRCode={handleOpenQRCode}
               onRetakeAll={handleRetakeAll}
               isDownloading={isDownloading}
+              isUploadingQR={isUploadingCloud}
             />
           </div>
         )}
       </section>
-
-      {/* Twin Strip Modal */}
-      <TwinStripModal
-        isOpen={isTwinModalOpen}
-        onClose={() => setIsTwinModalOpen(false)}
-        photos={photos}
-        theme={theme}
-        filter={filter}
-        stickers={stickers}
-        caption={caption}
-        showDate={showDate}
-        dateText={dateText}
-        onDownload={handleDownloadTwin}
-        isDownloading={isDownloading}
-      />
 
       {/* QR Code Modal for Mobile Scan & Cloud Save */}
       <QRCodeModal
@@ -454,7 +401,7 @@ export default function PhotoboothPage() {
 
       {/* Footer */}
       <footer className="relative z-10 w-full max-w-5xl pt-4 pb-2 border-t border-white/15 flex flex-col sm:flex-row items-center justify-between text-xs text-white/70 gap-2">
-        <p>© {new Date().getFullYear()} Transium Photobooth • Saved to local device & cloud QR</p>
+        <p>© {new Date().getFullYear()} Transium Photobooth • Saved to local device & mobile QR</p>
         <p className="flex items-center gap-1">
           Made with <Heart className="w-3.5 h-3.5 text-red-400 fill-red-400" /> for joyful memories
         </p>

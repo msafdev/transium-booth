@@ -8,7 +8,9 @@ interface ExportOptions {
   caption: string;
   showDate: boolean;
   dateText: string;
-  isTwin?: boolean;
+  scale?: number;
+  format?: "image/png" | "image/jpeg";
+  quality?: number;
 }
 
 // Helper to load an HTMLImageElement
@@ -97,11 +99,9 @@ export async function renderStripOnCanvas(
         let sy = 0;
 
         if (imgAspect > targetAspect) {
-          // Source is wider
           sWidth = img.height * targetAspect;
           sx = (img.width - sWidth) / 2;
         } else {
-          // Source is taller
           sHeight = img.width / targetAspect;
           sy = (img.height - sHeight) / 2;
         }
@@ -193,14 +193,13 @@ export async function renderStripOnCanvas(
   ctx.restore();
 }
 
-// Export high resolution single or twin strip
+// Export single high resolution strip
 export async function exportPhotoboothStrip(options: ExportOptions): Promise<string> {
-  const { photos, theme, filter, stickers, caption, showDate, dateText, isTwin = false } = options;
+  const { photos, theme, filter, stickers, caption, showDate, dateText, scale = 2, format = "image/png", quality = 0.95 } = options;
 
-  // Single strip base resolution
-  const singleWidth = 640;
-  const singleHeight = 1920; // 1:3 ratio classic 4-cut photobooth strip
-  const scaleFactor = 2; // 2x DPR for ultra crisp print quality
+  const singleWidth = 600;
+  const singleHeight = 1800; // 1:3 ratio classic 4-cut photobooth strip
+  const scaleFactor = scale;
 
   // Preload all needed images
   const loadedImagesMap = new Map<string, HTMLImageElement>();
@@ -244,84 +243,26 @@ export async function exportPhotoboothStrip(options: ExportOptions): Promise<str
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas 2D context not available");
 
-  if (isTwin) {
-    const gutter = 36;
-    const totalW = (singleWidth * 2 + gutter * 3) * scaleFactor;
-    const totalH = (singleHeight + gutter * 2) * scaleFactor;
+  canvas.width = singleWidth * scaleFactor;
+  canvas.height = singleHeight * scaleFactor;
+  ctx.scale(scaleFactor, scaleFactor);
 
-    canvas.width = totalW;
-    canvas.height = totalH;
-    ctx.scale(scaleFactor, scaleFactor);
+  await renderStripOnCanvas(ctx, {
+    offsetX: 0,
+    offsetY: 0,
+    width: singleWidth,
+    height: singleHeight,
+    photos,
+    theme,
+    filter,
+    stickers,
+    caption,
+    showDate,
+    dateText,
+    loadedImagesMap,
+  });
 
-    // Canvas background
-    ctx.fillStyle = "#F3F4F6";
-    ctx.fillRect(0, 0, totalW / scaleFactor, totalH / scaleFactor);
-
-    // Strip 1 (Left)
-    await renderStripOnCanvas(ctx, {
-      offsetX: gutter,
-      offsetY: gutter,
-      width: singleWidth,
-      height: singleHeight,
-      photos,
-      theme,
-      filter,
-      stickers,
-      caption,
-      showDate,
-      dateText,
-      loadedImagesMap,
-    });
-
-    // Strip 2 (Right)
-    await renderStripOnCanvas(ctx, {
-      offsetX: singleWidth + gutter * 2,
-      offsetY: gutter,
-      width: singleWidth,
-      height: singleHeight,
-      photos,
-      theme,
-      filter,
-      stickers,
-      caption,
-      showDate,
-      dateText,
-      loadedImagesMap,
-    });
-
-    // Draw center cut dotted line
-    ctx.save();
-    ctx.strokeStyle = "#9CA3AF";
-    ctx.lineWidth = 2;
-    ctx.setLineDash([10, 10]);
-    const cutLineX = singleWidth + gutter * 1.5;
-    ctx.beginPath();
-    ctx.moveTo(cutLineX, gutter / 2);
-    ctx.lineTo(cutLineX, singleHeight + gutter * 1.5);
-    ctx.stroke();
-    ctx.restore();
-  } else {
-    canvas.width = singleWidth * scaleFactor;
-    canvas.height = singleHeight * scaleFactor;
-    ctx.scale(scaleFactor, scaleFactor);
-
-    await renderStripOnCanvas(ctx, {
-      offsetX: 0,
-      offsetY: 0,
-      width: singleWidth,
-      height: singleHeight,
-      photos,
-      theme,
-      filter,
-      stickers,
-      caption,
-      showDate,
-      dateText,
-      loadedImagesMap,
-    });
-  }
-
-  return canvas.toDataURL("image/png", 1.0);
+  return canvas.toDataURL(format, quality);
 }
 
 // Helper to trigger browser download
