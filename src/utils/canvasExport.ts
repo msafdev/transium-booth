@@ -13,13 +13,22 @@ interface ExportOptions {
   quality?: number;
 }
 
-// Helper to load an HTMLImageElement
+// Helper to safely load an HTMLImageElement without CORS issues
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.crossOrigin = "anonymous";
+    // Only set crossOrigin for remote absolute HTTP/HTTPS URLs
+    if (src.startsWith("http://") || src.startsWith("https://")) {
+      img.crossOrigin = "anonymous";
+    }
     img.onload = () => resolve(img);
-    img.onerror = (e) => reject(e);
+    img.onerror = (e) => {
+      // Fallback attempt without crossOrigin attribute
+      const fallbackImg = new Image();
+      fallbackImg.onload = () => resolve(fallbackImg);
+      fallbackImg.onerror = () => reject(e);
+      fallbackImg.src = src;
+    };
     img.src = src;
   });
 }
@@ -197,11 +206,11 @@ export async function renderStripOnCanvas(
 export async function exportPhotoboothStrip(options: ExportOptions): Promise<string> {
   const { photos, theme, filter, stickers, caption, showDate, dateText, scale = 2, format = "image/png", quality = 0.95 } = options;
 
-  const singleWidth = 600;
-  const singleHeight = 1800; // 1:3 ratio classic 4-cut photobooth strip
+  const singleWidth = 540;
+  const singleHeight = 1620; // 1:3 ratio classic 4-cut photobooth strip
   const scaleFactor = scale;
 
-  // Preload all needed images
+  // Preload all needed images safely
   const loadedImagesMap = new Map<string, HTMLImageElement>();
 
   // Preload logotype
@@ -236,7 +245,7 @@ export async function exportPhotoboothStrip(options: ExportOptions): Promise<str
     }
   });
 
-  await Promise.all([...stickerPromises, ...photoPromises]);
+  await Promise.allSettled([...stickerPromises, ...photoPromises]);
 
   // Create canvas
   const canvas = document.createElement("canvas");

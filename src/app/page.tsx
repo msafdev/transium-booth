@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import confetti from "canvas-confetti";
 import { CameraView } from "../components/CameraView";
 import { PhotoStrip } from "../components/PhotoStrip";
@@ -32,6 +32,7 @@ export default function PhotoboothPage() {
   const [isQRModalOpen, setIsQRModalOpen] = useState<boolean>(false);
   const [qrShareUrl, setQrShareUrl] = useState<string>("");
   const [isUploadingCloud, setIsUploadingCloud] = useState<boolean>(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   // Initialize date timestamp
   useEffect(() => {
@@ -142,13 +143,14 @@ export default function PhotoboothPage() {
   };
 
   // Upload strip to Cloud / Server and open QR Code Modal
-  const handleOpenQRCode = async () => {
+  const handleOpenQRCode = useCallback(async () => {
     try {
       setIsQRModalOpen(true);
       setIsUploadingCloud(true);
+      setUploadError(null);
       setQrShareUrl("");
 
-      // Render web-optimized crisp strip for fast upload
+      // Render lightweight web-optimized strip for fast upload (~100KB)
       const dataUrl = await exportPhotoboothStrip({
         photos,
         theme,
@@ -157,9 +159,9 @@ export default function PhotoboothPage() {
         caption,
         showDate,
         dateText,
-        scale: 1.5,
+        scale: 1.0,
         format: "image/jpeg",
-        quality: 0.92,
+        quality: 0.85,
       });
 
       // Upload to API
@@ -176,7 +178,7 @@ export default function PhotoboothPage() {
 
       const result = await res.json();
       if (!res.ok || !result.success) {
-        throw new Error(result.error || "Failed to upload strip");
+        throw new Error(result.error || `Upload failed (Status ${res.status})`);
       }
 
       setQrShareUrl(result.shareUrl);
@@ -188,12 +190,12 @@ export default function PhotoboothPage() {
       });
     } catch (err) {
       console.error("QR upload error:", err);
-      alert("Could not generate cloud QR code. Please check your network connection.");
-      setIsQRModalOpen(false);
+      const errMsg = err instanceof Error ? err.message : "Failed to upload strip";
+      setUploadError(errMsg);
     } finally {
       setIsUploadingCloud(false);
     }
-  };
+  }, [photos, theme, filter, stickers, showStickers, caption, showDate, dateText]);
 
   return (
     <main className="relative min-h-screen bg-[#3673FD] text-white flex flex-col items-center justify-between p-4 sm:p-6 lg:p-8 overflow-x-hidden">
@@ -397,6 +399,8 @@ export default function PhotoboothPage() {
         onClose={() => setIsQRModalOpen(false)}
         shareUrl={qrShareUrl}
         isUploading={isUploadingCloud}
+        uploadError={uploadError}
+        onRetry={handleOpenQRCode}
       />
 
       {/* Footer */}

@@ -2,8 +2,16 @@ import fs from "fs";
 import path from "path";
 import { put } from "@vercel/blob";
 
-// In-memory cache fallback for local/dev and serverless invocations
+// In-memory cache fallback for serverless instances
 const memoryStore = new Map<string, { dataUrl: string; blobUrl?: string; createdAt: number }>();
+
+function getUploadDir(): string {
+  // Use /tmp on Vercel / serverless which is always writable
+  if (process.env.VERCEL === "1" || process.env.NODE_ENV === "production") {
+    return path.join("/tmp", "transium_uploads");
+  }
+  return path.join(process.cwd(), "public", "uploads");
+}
 
 export async function saveStrip(
   id: string,
@@ -15,7 +23,7 @@ export async function saveStrip(
   const base64Data = dataUrl.replace(/^data:image\/\w+;base64,/, "");
   const buffer = Buffer.from(base64Data, "base64");
 
-  // 1. If Vercel Blob token is configured, upload directly to Vercel Blob CDN (Fast & Persistent)
+  // 1. If Vercel Blob token is configured, upload directly to Vercel Blob CDN
   if (process.env.BLOB_READ_WRITE_TOKEN) {
     try {
       const blob = await put(`strips/${id}.png`, buffer, {
@@ -28,17 +36,17 @@ export async function saveStrip(
     }
   }
 
-  // 2. Try writing to public/uploads (for local server / Node hosting)
+  // 2. Try writing to disk cache (/tmp or public/uploads)
   try {
-    const uploadsDir = path.join(process.cwd(), "public", "uploads");
+    const uploadsDir = getUploadDir();
     if (!fs.existsSync(uploadsDir)) {
       fs.mkdirSync(uploadsDir, { recursive: true });
     }
     const filePath = path.join(uploadsDir, `${id}.png`);
     fs.writeFileSync(filePath, buffer);
     fileSaved = true;
-  } catch {
-    // Expected in read-only serverless
+  } catch (fsErr) {
+    console.warn("Could not write to disk cache:", fsErr);
   }
 
   // 3. Keep in memory store
@@ -57,14 +65,25 @@ export function getStrip(id: string): { buffer?: Buffer; redirectUrl?: string } 
     return { redirectUrl: stored.blobUrl };
   }
 
-  // 1. Try reading from filesystem
+  // 1. Try reading from disk (/tmp/transium_uploads or public/uploads)
   try {
-    const filePath = path.join(process.cwd(), "public", "uploads", `${id}.png`);
+    const uploadsDir = getUploadDir();
+    const filePath = path.join(uploadsDir, `${id}.png`);
     if (fs.existsSync(filePath)) {
       return { buffer: fs.readFileSync(filePath) };
     }
   } catch {
     // Fallback to memory
+  }
+
+  // Also check public/uploads as secondary fallback
+  try {
+    const fallbackPath = path.join(process.cwd(), "public", "uploads", `${id}.png`);
+    if (fs.existsSync(fallbackPath)) {
+      return { buffer: fs.readFileSync(fallbackPath) };
+    }
+  } catch {
+    // Fallback
   }
 
   // 2. Try memory store
