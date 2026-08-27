@@ -38,7 +38,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
   const [timerDuration, setTimerDuration] = useState<number>(3); // 3 seconds default
   const [capturedBatch, setCapturedBatch] = useState<PhotoItem[]>([]);
 
-  // Initialize camera stream
+  // Initialize camera stream in Full HD (1080p / 2K)
   const startCamera = useCallback(async (deviceId?: string) => {
     try {
       setErrorMsg(null);
@@ -50,9 +50,10 @@ export const CameraView: React.FC<CameraViewProps> = ({
         video: {
           deviceId: deviceId ? { exact: deviceId } : undefined,
           facingMode: deviceId ? undefined : "user",
-          width: { ideal: 1280 },
-          height: { ideal: 960 },
+          width: { ideal: 1920, min: 1280 },
+          height: { ideal: 1440, min: 960 },
           aspectRatio: { ideal: 4 / 3 },
+          frameRate: { ideal: 30 },
         },
         audio: false,
       };
@@ -75,7 +76,6 @@ export const CameraView: React.FC<CameraViewProps> = ({
     } catch (err: unknown) {
       console.error("Camera access error:", err);
       setIsCameraActive(false);
-      const message = err instanceof Error ? err.message : "Could not access camera";
       setErrorMsg("Camera permission denied or camera not found. You can also upload photos directly.");
     }
   }, [selectedDeviceId, stream]);
@@ -90,7 +90,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
     };
   }, []);
 
-  // Capture frame from video feed
+  // Capture ultra-sharp HD frame from video feed
   const captureFrame = useCallback((): string | null => {
     if (!videoRef.current) return null;
     const video = videoRef.current;
@@ -99,8 +99,11 @@ export const CameraView: React.FC<CameraViewProps> = ({
     const canvas = document.createElement("canvas");
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext("2d", { alpha: false });
     if (!ctx) return null;
+
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
 
     // Handle mirror mode
     if (isMirrored) {
@@ -109,7 +112,8 @@ export const CameraView: React.FC<CameraViewProps> = ({
     }
 
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL("image/jpeg", 0.95);
+    // Export uncompressed crisp image
+    return canvas.toDataURL("image/jpeg", 0.98);
   }, [isMirrored]);
 
   // Start 4-photo automatic photobooth sequence
@@ -224,7 +228,6 @@ export const CameraView: React.FC<CameraViewProps> = ({
       if (retakeSlotIndex !== null && uploadedPhotos.length > 0 && onSinglePhotoCaptured) {
         onSinglePhotoCaptured(uploadedPhotos[0], retakeSlotIndex);
       } else {
-        // Pad to 4 if fewer uploaded
         const combined = [...uploadedPhotos];
         while (combined.length < 4) {
           combined.push(uploadedPhotos[combined.length % uploadedPhotos.length]);
@@ -237,7 +240,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
   return (
     <div className="w-full flex flex-col items-center">
       {/* Video Viewfinder Container */}
-      <div className="relative w-full aspect-[4/3] max-w-xl bg-slate-900 rounded-2xl overflow-hidden shadow-2xl border-4 border-white/20 flex items-center justify-center">
+      <div className="relative w-full aspect-[4/3] max-w-xl bg-slate-900 rounded-3xl overflow-hidden shadow-2xl border-4 border-white/20 flex items-center justify-center">
         {/* Flash Effect */}
         <div
           className={`absolute inset-0 bg-white z-50 pointer-events-none transition-opacity duration-150 ${

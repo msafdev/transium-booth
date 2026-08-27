@@ -32,7 +32,6 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 }
 
 // Exact layout constants matching PhotoStrip.tsx DOM layout at 1x base
-// DOM: max-w-[360px], p-5 (20px), gap-3.5 (14px), aspect 4:3 photos
 export const STRIP_BASE_WIDTH = 360;
 export const STRIP_BASE_PADDING = 20;
 export const STRIP_PHOTO_WIDTH = STRIP_BASE_WIDTH - STRIP_BASE_PADDING * 2; // 320px
@@ -48,7 +47,7 @@ export const STRIP_BASE_HEIGHT =
   STRIP_PHOTO_HEIGHT * 4 +
   STRIP_PHOTO_GAP * 3 +
   STRIP_FOOTER_HEIGHT +
-  STRIP_BASE_PADDING; // = 20 + 68 + 960 + 42 + 64 + 20 = 1174px
+  STRIP_BASE_PADDING; // 1174px
 
 // Draw a single photobooth strip onto a given CanvasRenderingContext2D (Pixel-perfect to DOM)
 export async function renderStripOnCanvas(
@@ -71,6 +70,10 @@ export async function renderStripOnCanvas(
   const { offsetX, offsetY, width, height, photos, theme, filter, stickers, caption, showDate, dateText, loadedImagesMap } = options;
 
   const scale = width / STRIP_BASE_WIDTH;
+
+  // Ultra-high quality bicubic image smoothing
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
 
   // 1. Draw Strip Background
   ctx.save();
@@ -150,7 +153,6 @@ export async function renderStripOnCanvas(
   const logotypeImg = loadedImagesMap.get("/assets/transium-logotype.png");
   if (logotypeImg) {
     ctx.save();
-    // DOM width: w-52 (208px at base 360px width)
     const logoW = 208 * scale;
     const logoH = (logoW / logotypeImg.width) * logotypeImg.height;
     const logoCenterX = offsetX + width / 2;
@@ -214,9 +216,9 @@ export async function renderStripOnCanvas(
   ctx.restore();
 }
 
-// Export single high resolution strip (Exact replica of live preview)
+// Export single ultra-HD resolution strip (3.5x scale = 1260px x 4109px crystal clarity)
 export async function exportPhotoboothStrip(options: ExportOptions): Promise<string> {
-  const { photos, theme, filter, stickers, caption, showDate, dateText, scale = 2, format = "image/png", quality = 0.95 } = options;
+  const { photos, theme, filter, stickers, caption, showDate, dateText, scale = 3.5, format = "image/png", quality = 1.0 } = options;
 
   const totalWidth = STRIP_BASE_WIDTH * scale;
   const totalHeight = STRIP_BASE_HEIGHT * scale;
@@ -260,11 +262,14 @@ export async function exportPhotoboothStrip(options: ExportOptions): Promise<str
 
   // Create canvas
   const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d");
+  const ctx = canvas.getContext("2d", { alpha: false });
   if (!ctx) throw new Error("Canvas 2D context not available");
 
   canvas.width = totalWidth;
   canvas.height = totalHeight;
+
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
 
   await renderStripOnCanvas(ctx, {
     offsetX: 0,
