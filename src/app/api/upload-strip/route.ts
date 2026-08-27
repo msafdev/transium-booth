@@ -4,7 +4,7 @@ import { saveStrip } from "../../../utils/stripStorage";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { image } = body;
+    const { image, origin } = body;
 
     if (!image || typeof image !== "string") {
       return NextResponse.json({ error: "Missing or invalid image data" }, { status: 400 });
@@ -17,9 +17,18 @@ export async function POST(req: NextRequest) {
     const { fileSaved, publicBlobUrl } = await saveStrip(id, image);
 
     // Determine public base URL
-    const host = req.headers.get("x-forwarded-host") || req.headers.get("host") || "localhost:3000";
-    const protocol = req.headers.get("x-forwarded-proto") || (host.startsWith("localhost") ? "http" : "https");
-    const baseUrl = `${protocol}://${host}`;
+    // Prioritize configured site URL / Vercel production domain
+    let baseUrl = "https://transium-booth.vercel.app";
+
+    if (origin && !origin.includes("localhost") && !origin.includes("127.0.0.1")) {
+      baseUrl = origin;
+    } else if (process.env.NEXT_PUBLIC_SITE_URL) {
+      baseUrl = process.env.NEXT_PUBLIC_SITE_URL;
+    } else if (process.env.VERCEL_URL) {
+      baseUrl = `https://${process.env.VERCEL_URL}`;
+    } else if (origin) {
+      baseUrl = origin;
+    }
 
     const shareUrl = `${baseUrl}/strip/${id}`;
     const directImageUrl = publicBlobUrl || (fileSaved ? `${baseUrl}/uploads/${id}.png` : `${baseUrl}/api/strip/${id}`);
