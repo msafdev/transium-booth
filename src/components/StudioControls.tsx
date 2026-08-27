@@ -14,7 +14,7 @@ import {
   Check,
   FileImage,
   QrCode,
-  Smartphone,
+  FolderHeart,
   CheckCircle2,
   Share2,
 } from "lucide-react";
@@ -38,7 +38,7 @@ interface StudioControlsProps {
   onOpenQRCode: () => void;
   onRetakeAll: () => void;
   isDownloading: boolean;
-  isUploadingQR: boolean;
+  isUploadingQR?: boolean;
 }
 
 type TabType = "theme" | "filters" | "stickers" | "text" | "export";
@@ -62,7 +62,6 @@ export const StudioControls: React.FC<StudioControlsProps> = ({
   onOpenQRCode,
   onRetakeAll,
   isDownloading,
-  isUploadingQR,
 }) => {
   const [activeTab, setActiveTab] = useState<TabType>("theme");
 
@@ -286,27 +285,26 @@ export const StudioControls: React.FC<StudioControlsProps> = ({
       {/* Tab 5: Share & Export */}
       {activeTab === "export" && (
         <div className="flex flex-col gap-3.5 animate-pop-in">
-          {/* Mobile QR Card */}
+          {/* Google Drive QR Card */}
           <div className="p-4 sm:p-5 rounded-2xl bg-amber-400 text-slate-950 flex flex-col gap-3 shadow-lg">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Smartphone className="w-5 h-5 text-slate-950" />
-                <h4 className="text-sm font-black">Scan QR Code on Phone</h4>
+                <FolderHeart className="w-5 h-5 text-slate-950" />
+                <h4 className="text-sm font-black">Google Drive Album QR</h4>
               </div>
               <span className="bg-black/15 text-slate-950 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider">
-                Instant
+                Drive Album
               </span>
             </div>
             <p className="text-xs font-medium text-slate-900 leading-relaxed">
-              Uploads your strip to the cloud and creates a QR code so you can save it directly to your phone&apos;s photo album!
+              Show QR code for the event&apos;s shared Google Drive folder so everyone can access, download, and view all photobooth strips!
             </p>
             <button
               onClick={onOpenQRCode}
-              disabled={isUploadingQR}
-              className="w-full py-3.5 px-4 rounded-xl bg-slate-950 hover:bg-slate-900 text-white font-black text-sm shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+              className="w-full py-3.5 px-4 rounded-xl bg-slate-950 hover:bg-slate-900 text-white font-black text-sm shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95"
             >
               <QrCode className="w-4 h-4 text-amber-400" />
-              <span>{isUploadingQR ? "Preparing QR Code..." : "✨ Generate Mobile QR Code"}</span>
+              <span>✨ View Google Drive QR Code</span>
             </button>
           </div>
 
@@ -335,12 +333,11 @@ export const StudioControls: React.FC<StudioControlsProps> = ({
         <div className="flex items-center gap-2">
           <button
             onClick={onOpenQRCode}
-            disabled={isUploadingQR}
-            className="py-2.5 px-4 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-md transition-all cursor-pointer active:scale-95 disabled:opacity-50"
-            title="Scan QR Code to save on phone"
+            className="py-2.5 px-4 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-md transition-all cursor-pointer active:scale-95"
+            title="Scan QR Code for Google Drive"
           >
             <QrCode className="w-3.5 h-3.5 text-slate-950" />
-            <span>{isUploadingQR ? "Loading..." : "Scan QR"}</span>
+            <span>Drive QR</span>
           </button>
 
           {activeTab !== "export" && (
