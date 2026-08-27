@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { X, Copy, Check, ExternalLink, Smartphone, CheckCircle, FolderHeart, AlertCircle, RefreshCw } from "lucide-react";
+import { X, Copy, Check, ExternalLink, Smartphone, CheckCircle, FolderHeart, AlertCircle, HelpCircle, ChevronDown, ChevronUp } from "lucide-react";
 
 export const GDRIVE_FOLDER_URL = "https://drive.google.com/drive/folders/1OV1osHIXrRjtaaIt7hX90AkY1AXGdZr6?usp=sharing";
 
@@ -24,6 +24,7 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
   onRetry,
 }) => {
   const [hasCopied, setHasCopied] = useState<boolean>(false);
+  const [showDriveGuide, setShowDriveGuide] = useState<boolean>(false);
 
   if (!isOpen) return null;
 
@@ -36,8 +37,8 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-fadeIn select-none">
-      <div className="relative w-full max-w-sm bg-[#3673FD] border border-white/30 rounded-3xl p-6 sm:p-7 shadow-2xl backdrop-blur-2xl flex flex-col items-center text-center text-white animate-pop-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-fadeIn select-none overflow-y-auto">
+      <div className="relative w-full max-w-sm bg-[#3673FD] border border-white/30 rounded-3xl p-6 sm:p-7 shadow-2xl backdrop-blur-2xl flex flex-col items-center text-center text-white animate-pop-in my-auto">
         {/* Close Button */}
         <button
           onClick={onClose}
@@ -49,14 +50,14 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
         {/* Title Badge */}
         <div className="flex items-center gap-1.5 bg-amber-400 text-slate-950 px-3.5 py-1 rounded-full text-xs font-black shadow-md mb-2.5">
           <Smartphone className="w-3.5 h-3.5" />
-          <span>Instant Mobile Scan</span>
+          <span>Mobile QR & Google Drive</span>
         </div>
 
         <h3 className="text-xl font-black text-white mb-1 tracking-tight">
           Save Photo Strip
         </h3>
         <p className="text-xs text-white/85 mb-3 max-w-xs leading-relaxed">
-          Scan this QR code with your phone camera to view, save, and share your photobooth strip!
+          Scan this QR code with your phone camera to view, save, and download your 4-cut photobooth strip!
         </p>
 
         {/* Polaroid Style White Frame for QR */}
@@ -132,6 +133,36 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
             >
               Done
             </button>
+          </div>
+
+          {/* Collapsible Direct Google Drive Auto-Sync Helper */}
+          <div className="w-full mt-2 pt-2 border-t border-white/20">
+            <button
+              onClick={() => setShowDriveGuide(!showDriveGuide)}
+              className="w-full flex items-center justify-between text-[11px] font-bold text-amber-200 hover:text-white transition-colors cursor-pointer"
+            >
+              <span className="flex items-center gap-1">
+                <HelpCircle className="w-3.5 h-3.5" />
+                <span>How Google Drive Auto-Sync Works</span>
+              </span>
+              {showDriveGuide ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </button>
+
+            {showDriveGuide && (
+              <div className="mt-2 p-3 bg-black/25 rounded-2xl border border-white/15 text-[11px] text-white/90 text-left leading-relaxed animate-fadeIn">
+                <p className="font-bold text-amber-300 mb-1">📁 Direct Google Drive Auto-Upload:</p>
+                <p className="mb-2">
+                  Google Drive requires an Apps Script authorization endpoint to allow a website to create files inside your folder automatically.
+                </p>
+                <p className="font-semibold text-white mb-1">Steps (1 Minute):</p>
+                <ol className="list-decimal list-inside space-y-1 text-white/80 text-[10px]">
+                  <li>Open <strong>script.google.com</strong> and click &quot;New project&quot;.</li>
+                  <li>Paste the Transium Drive webhook script provided in the repository.</li>
+                  <li>Click <strong>Deploy → Web app</strong> (Access: Anyone).</li>
+                  <li>Add the URL to Vercel as <code className="bg-white/20 px-1 rounded">GOOGLE_DRIVE_WEBHOOK_URL</code>.</li>
+                </ol>
+              </div>
+            )}
           </div>
         </div>
       </div>
