@@ -94,7 +94,7 @@ export default function PhotoboothPage() {
     setStickers((prev) =>
       prev.map((s) => ({
         ...s,
-        rotationDeg: Math.floor(Math.random() * 50) - 25, // -25deg to +25deg
+        rotationDeg: Math.floor(Math.random() * 50) - 25,
         xPercent: Math.max(8, Math.min(92, s.xPercent + (Math.random() * 6 - 3))),
         yPercent: Math.max(5, Math.min(95, s.yPercent + (Math.random() * 4 - 2))),
       }))
@@ -110,7 +110,7 @@ export default function PhotoboothPage() {
     }
   };
 
-  // Download single strip PNG to local computer
+  // Download single strip PNG to local computer in 3.5x Ultra HD
   const handleDownloadSingle = async () => {
     try {
       setIsDownloading(true);
@@ -122,7 +122,7 @@ export default function PhotoboothPage() {
         caption,
         showDate,
         dateText,
-        scale: 2,
+        scale: 3.5,
         format: "image/png",
       });
 
@@ -142,7 +142,7 @@ export default function PhotoboothPage() {
     }
   };
 
-  // Upload strip to Cloud / Server and open QR Code Modal
+  // Automatically save strip & generate QR code
   const handleOpenQRCode = useCallback(async () => {
     try {
       setIsQRModalOpen(true);
@@ -150,7 +150,7 @@ export default function PhotoboothPage() {
       setUploadError(null);
       setQrShareUrl("");
 
-      // Render crisp web strip
+      // 1. Generate full quality HD strip
       const dataUrl = await exportPhotoboothStrip({
         photos,
         theme,
@@ -159,12 +159,15 @@ export default function PhotoboothPage() {
         caption,
         showDate,
         dateText,
-        scale: 1.2,
-        format: "image/jpeg",
-        quality: 0.88,
+        scale: 3.5,
+        format: "image/png",
       });
 
-      // Upload to API
+      // 2. Auto-save to device / download folder so it is NEVER lost
+      const filename = `transium-booth-${Date.now()}.png`;
+      downloadDataUrl(dataUrl, filename);
+
+      // 3. Upload to API for mobile QR scan
       const res = await fetch("/api/upload-strip", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -181,14 +184,7 @@ export default function PhotoboothPage() {
         throw new Error(result.error || `Upload failed (Status ${res.status})`);
       }
 
-      // If we don't have a persistent external cloud CDN URL, embed the image data hash into the share URL
-      // so the phone NEVER expires and loads the exact photo strip with 100% guarantee!
-      let finalShareUrl = result.shareUrl;
-      if (!result.imageUrl.startsWith("https://") || result.imageUrl.includes("/api/strip")) {
-        finalShareUrl = `${result.shareUrl}#data=${encodeURIComponent(dataUrl)}`;
-      }
-
-      setQrShareUrl(finalShareUrl);
+      setQrShareUrl(result.shareUrl);
 
       confetti({
         particleCount: 45,
