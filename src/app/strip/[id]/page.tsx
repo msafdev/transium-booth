@@ -1,20 +1,22 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import React, { useEffect, useState, Suspense } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import confetti from "canvas-confetti";
-import { Download, Share2, Sparkles, ArrowLeft, Heart, Check, Copy } from "lucide-react";
-import { downloadDataUrl } from "../../../utils/canvasExport";
+import { Download, Share2, Sparkles, ArrowLeft, Heart, Check, Copy, AlertCircle, RefreshCw } from "lucide-react";
 
-export default function StripSharePage() {
+function StripShareContent() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const id = params?.id as string;
+  const queryImg = searchParams?.get("img");
 
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [imageUrl, setImageUrl] = useState<string | null>(queryImg || null);
+  const [isLoading, setIsLoading] = useState<boolean>(!queryImg);
   const [hasCopied, setHasCopied] = useState<boolean>(false);
   const [canShare, setCanShare] = useState<boolean>(false);
+  const [imageError, setImageError] = useState<boolean>(false);
 
   useEffect(() => {
     if (typeof window !== "undefined" && typeof navigator !== "undefined" && "share" in navigator) {
@@ -23,32 +25,43 @@ export default function StripSharePage() {
   }, []);
 
   useEffect(() => {
-    if (!id) return;
-
-    // Trigger welcoming celebration confetti
+    // Trigger celebration confetti
     confetti({
-      particleCount: 60,
+      particleCount: 50,
       spread: 70,
       origin: { y: 0.6 },
       colors: ["#3673FD", "#FFD166", "#06D6A0", "#EF476F", "#FFFFFF"],
     });
 
-    const targetUrl = `/api/strip/${id}`;
-    setImageUrl(targetUrl);
-    setIsLoading(false);
-  }, [id]);
+    if (queryImg) {
+      setImageUrl(queryImg);
+      setIsLoading(false);
+    } else if (id) {
+      const targetUrl = `/api/strip/${id}`;
+      setImageUrl(targetUrl);
+      setIsLoading(false);
+    }
+  }, [id, queryImg]);
 
   const handleDownload = async () => {
     if (!imageUrl) return;
     try {
-      // Fetch as blob to trigger direct device download
       const res = await fetch(imageUrl);
+      const contentType = res.headers.get("content-type") || "";
+
+      // Ensure response is an image and not a 404 JSON error
+      if (!res.ok || contentType.includes("application/json")) {
+        // Direct open fallback
+        window.open(imageUrl, "_blank");
+        return;
+      }
+
       const blob = await res.blob();
       const blobUrl = URL.createObjectURL(blob);
 
       const link = document.createElement("a");
       link.href = blobUrl;
-      link.download = `transium-booth-${id}.png`;
+      link.download = `transium-booth-${id || "photo"}.png`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -69,7 +82,7 @@ export default function StripSharePage() {
     try {
       const res = await fetch(imageUrl);
       const blob = await res.blob();
-      const file = new File([blob], `transium-booth-${id}.png`, { type: "image/png" });
+      const file = new File([blob], `transium-booth-${id || "photo"}.png`, { type: "image/png" });
 
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
@@ -97,7 +110,7 @@ export default function StripSharePage() {
 
   return (
     <main className="relative min-h-screen bg-[#3673FD] text-white flex flex-col items-center justify-between p-4 sm:p-6 lg:p-8 overflow-x-hidden">
-      {/* Background Floating Decorative Elements */}
+      {/* Background Floating Elements */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden z-0 select-none">
         <div className="absolute top-10 left-8 w-12 h-12 opacity-25 animate-float-1">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -106,10 +119,6 @@ export default function StripSharePage() {
         <div className="absolute bottom-16 right-10 w-14 h-14 opacity-25 animate-float-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/assets/confetti-1.png" alt="" className="w-full h-full object-contain" />
-        </div>
-        <div className="absolute top-1/2 left-6 w-10 h-10 opacity-20 animate-float-1">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/assets/star.png" alt="" className="w-full h-full object-contain" />
         </div>
       </div>
 
@@ -142,16 +151,29 @@ export default function StripSharePage() {
         </div>
 
         {/* Photo Strip Image Preview */}
-        <div className="relative w-full max-w-[320px] rounded-2xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.4)] border-2 border-white/20 bg-slate-900 flex items-center justify-center">
+        <div className="relative w-full max-w-[320px] rounded-2xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.45)] border-2 border-white/25 bg-slate-900 flex items-center justify-center min-h-[400px]">
           {isLoading ? (
-            <div className="w-full aspect-[1/3] flex items-center justify-center text-white/60 text-xs font-semibold">
-              Loading strip...
+            <div className="flex flex-col items-center justify-center gap-2 text-white/75 text-xs font-semibold p-8">
+              <div className="w-8 h-8 border-3 border-amber-400 border-t-transparent rounded-full animate-spin" />
+              <span>Loading strip...</span>
+            </div>
+          ) : imageError ? (
+            <div className="flex flex-col items-center justify-center text-center p-6 gap-2 text-white">
+              <AlertCircle className="w-8 h-8 text-amber-400" />
+              <p className="text-sm font-bold">Strip expired or not found</p>
+              <button
+                onClick={() => router.push("/")}
+                className="mt-2 px-4 py-2 rounded-xl bg-white text-[#3673FD] font-bold text-xs"
+              >
+                Create a New Strip
+              </button>
             </div>
           ) : imageUrl ? (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
               src={imageUrl}
               alt="Transium Photobooth Strip"
+              onError={() => setImageError(true)}
               className="w-full h-auto object-contain block select-none"
             />
           ) : (
@@ -190,8 +212,8 @@ export default function StripSharePage() {
             </button>
           </div>
 
-          <p className="text-[11px] text-white/70 text-center leading-tight pt-1">
-            💡 On mobile, tap <strong>Save to Photos</strong> or press and hold the image to save directly to your gallery.
+          <p className="text-[11px] text-white/75 text-center leading-tight pt-1">
+            💡 On mobile, tap <strong>Save to Photos</strong> or press and hold the photo strip to save directly to your camera roll.
           </p>
         </div>
       </section>
@@ -201,5 +223,19 @@ export default function StripSharePage() {
         <p>© {new Date().getFullYear()} Transium Photobooth</p>
       </footer>
     </main>
+  );
+}
+
+export default function StripSharePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[#3673FD] flex items-center justify-center text-white font-bold text-sm">
+          Loading photo strip...
+        </div>
+      }
+    >
+      <StripShareContent />
+    </Suspense>
   );
 }

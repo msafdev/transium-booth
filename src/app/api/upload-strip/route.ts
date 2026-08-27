@@ -17,7 +17,6 @@ export async function POST(req: NextRequest) {
     const { fileSaved, publicBlobUrl } = await saveStrip(id, image);
 
     // Determine public base URL
-    // Prioritize configured site URL / Vercel production domain
     let baseUrl = "https://transium-booth.vercel.app";
 
     if (origin && !origin.includes("localhost") && !origin.includes("127.0.0.1")) {
@@ -30,8 +29,12 @@ export async function POST(req: NextRequest) {
       baseUrl = origin;
     }
 
-    const shareUrl = `${baseUrl}/strip/${id}`;
     const directImageUrl = publicBlobUrl || (fileSaved ? `${baseUrl}/uploads/${id}.png` : `${baseUrl}/api/strip/${id}`);
+
+    // If we have a direct CDN image URL, attach it as param so any phone gets the image immediately!
+    const shareUrl = publicBlobUrl
+      ? `${baseUrl}/strip/${id}?img=${encodeURIComponent(publicBlobUrl)}`
+      : `${baseUrl}/strip/${id}`;
 
     return NextResponse.json({
       success: true,
