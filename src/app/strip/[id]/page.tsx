@@ -3,7 +3,7 @@
 import React, { useEffect, useState, Suspense } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import confetti from "canvas-confetti";
-import { Download, Share2, Sparkles, ArrowLeft, Heart, Check, Copy, AlertCircle, RefreshCw } from "lucide-react";
+import { Download, Share2, Sparkles, ArrowLeft, Heart, Check, Copy, AlertCircle, Camera } from "lucide-react";
 
 function StripShareContent() {
   const params = useParams();
@@ -17,6 +17,7 @@ function StripShareContent() {
   const [hasCopied, setHasCopied] = useState<boolean>(false);
   const [canShare, setCanShare] = useState<boolean>(false);
   const [imageError, setImageError] = useState<boolean>(false);
+  const [isDownloading, setIsDownloading] = useState<boolean>(false);
 
   useEffect(() => {
     if (typeof window !== "undefined" && typeof navigator !== "undefined" && "share" in navigator) {
@@ -25,7 +26,7 @@ function StripShareContent() {
   }, []);
 
   useEffect(() => {
-    // Trigger celebration confetti
+    // Welcoming celebration confetti
     confetti({
       particleCount: 50,
       spread: 70,
@@ -46,12 +47,12 @@ function StripShareContent() {
   const handleDownload = async () => {
     if (!imageUrl) return;
     try {
+      setIsDownloading(true);
       const res = await fetch(imageUrl);
       const contentType = res.headers.get("content-type") || "";
 
       // Ensure response is an image and not a 404 JSON error
       if (!res.ok || contentType.includes("application/json")) {
-        // Direct open fallback
         window.open(imageUrl, "_blank");
         return;
       }
@@ -68,12 +69,14 @@ function StripShareContent() {
       URL.revokeObjectURL(blobUrl);
 
       confetti({
-        particleCount: 40,
-        spread: 60,
+        particleCount: 45,
+        spread: 65,
         origin: { y: 0.7 },
       });
     } catch {
       window.open(imageUrl, "_blank");
+    } finally {
+      setIsDownloading(false);
     }
   };
 
@@ -120,16 +123,20 @@ function StripShareContent() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/assets/confetti-1.png" alt="" className="w-full h-full object-contain" />
         </div>
+        <div className="absolute top-1/2 left-4 w-10 h-10 opacity-20 animate-float-1">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/assets/star.png" alt="" className="w-full h-full object-contain" />
+        </div>
       </div>
 
       {/* Header */}
       <header className="relative z-10 w-full max-w-md flex items-center justify-between gap-4 pb-4">
         <button
           onClick={() => router.push("/")}
-          className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer backdrop-blur-md"
+          className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 px-4 py-2 rounded-full text-xs font-black transition-all cursor-pointer backdrop-blur-md border border-white/25 active:scale-95"
         >
-          <ArrowLeft className="w-4 h-4" />
-          <span>New Strip</span>
+          <Camera className="w-4 h-4" />
+          <span>Shoot New</span>
         </button>
 
         <div className="relative w-32 h-9">
@@ -145,17 +152,17 @@ function StripShareContent() {
       {/* Main Content */}
       <section className="relative z-10 w-full max-w-md my-auto py-2 flex flex-col items-center gap-5">
         {/* Banner */}
-        <div className="flex items-center gap-2 bg-white/15 backdrop-blur-md px-4 py-2 rounded-full border border-white/20 text-xs font-bold shadow-sm">
+        <div className="flex items-center gap-2 bg-white/15 backdrop-blur-md px-4 py-2 rounded-full border border-white/20 text-xs font-black shadow-lg">
           <Sparkles className="w-4 h-4 text-amber-300" />
-          <span>Your Photobooth Strip is Ready!</span>
+          <span>Your 4-Cut Photobooth Strip!</span>
         </div>
 
         {/* Photo Strip Image Preview */}
-        <div className="relative w-full max-w-[320px] rounded-2xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.45)] border-2 border-white/25 bg-slate-900 flex items-center justify-center min-h-[400px]">
+        <div className="relative w-full max-w-[320px] rounded-3xl overflow-hidden shadow-[0_25px_60px_rgba(0,0,0,0.5)] border-2 border-white/30 bg-slate-950 flex items-center justify-center min-h-[420px] transition-all">
           {isLoading ? (
-            <div className="flex flex-col items-center justify-center gap-2 text-white/75 text-xs font-semibold p-8">
-              <div className="w-8 h-8 border-3 border-amber-400 border-t-transparent rounded-full animate-spin" />
-              <span>Loading strip...</span>
+            <div className="flex flex-col items-center justify-center gap-3 text-white/80 text-xs font-bold p-8">
+              <div className="w-9 h-9 border-3 border-amber-400 border-t-transparent rounded-full animate-spin" />
+              <span>Loading your photo strip...</span>
             </div>
           ) : imageError ? (
             <div className="flex flex-col items-center justify-center text-center p-6 gap-2 text-white">
@@ -186,17 +193,18 @@ function StripShareContent() {
           {/* Main Save Button */}
           <button
             onClick={handleDownload}
-            className="w-full py-4 px-6 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-base shadow-xl flex items-center justify-center gap-2 transform active:scale-95 transition-all cursor-pointer"
+            disabled={isDownloading}
+            className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black text-base shadow-2xl flex items-center justify-center gap-2 transform active:scale-95 transition-all cursor-pointer disabled:opacity-50"
           >
-            <Download className="w-5 h-5" />
-            <span>Save to Photos / Download</span>
+            <Download className="w-5 h-5 text-slate-950" />
+            <span>{isDownloading ? "Saving..." : "Save to Camera Roll / Download"}</span>
           </button>
 
           <div className="flex gap-2">
             {canShare && (
               <button
                 onClick={handleShare}
-                className="flex-1 py-3 px-4 rounded-xl bg-white text-[#3673FD] hover:bg-white/95 font-black text-xs shadow-md flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95"
+                className="flex-1 py-3.5 px-4 rounded-2xl bg-white text-[#3673FD] hover:bg-white/95 font-black text-xs shadow-md flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95"
               >
                 <Share2 className="w-4 h-4" />
                 <span>Share</span>
@@ -205,15 +213,15 @@ function StripShareContent() {
 
             <button
               onClick={handleCopyLink}
-              className="flex-1 py-3 px-4 rounded-xl bg-white/20 hover:bg-white/30 text-white font-bold text-xs shadow-md flex items-center justify-center gap-1.5 transition-all cursor-pointer backdrop-blur-md active:scale-95"
+              className="flex-1 py-3.5 px-4 rounded-2xl bg-white/20 hover:bg-white/30 text-white font-black text-xs shadow-md flex items-center justify-center gap-1.5 transition-all cursor-pointer backdrop-blur-md border border-white/25 active:scale-95"
             >
               {hasCopied ? <Check className="w-4 h-4 text-emerald-300" /> : <Copy className="w-4 h-4" />}
-              <span>{hasCopied ? "Copied!" : "Copy Link"}</span>
+              <span>{hasCopied ? "Link Copied!" : "Copy Link"}</span>
             </button>
           </div>
 
-          <p className="text-[11px] text-white/75 text-center leading-tight pt-1">
-            💡 On mobile, tap <strong>Save to Photos</strong> or press and hold the photo strip to save directly to your camera roll.
+          <p className="text-[11px] text-white/80 text-center leading-tight pt-1">
+            💡 <strong>Tip</strong>: You can also tap and hold the strip above to save directly into your Photos app!
           </p>
         </div>
       </section>
